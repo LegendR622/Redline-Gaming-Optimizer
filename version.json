@@ -1,5 +1,5 @@
 {
-  "version": "5.4",
-  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v5.4/Redline_Gaming_Optimizer_Setup_v5.4.exe",
-  "notes": "Erste öffentliche Version mit Cleaner, Security Check, Driver Check, Speed Test, DNS Optimizer und Installer."
+  "version": "5.5",
+  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v5.5/Redline_Gaming_Optimizer_Setup_v5.5.exe",
+  "notes": "Update Center eingebaut: Redline kann jetzt online nach neuen Versionen suchen, den Installer herunterladen und starten."
 }
