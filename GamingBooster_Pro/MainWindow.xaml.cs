@@ -103,7 +103,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.8";
+        private const string CurrentAppVersion = "9.9";
 
         private static readonly string[] CleanerRecommendedCategories =
         {
@@ -242,8 +242,58 @@ namespace GamingBooster_Pro
         private async Task RunUiSelfTestAsync()
         {
             Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            RedlineTestHooks.DryRun = true;
             List<string> failures = new List<string>();
             List<string> log = new List<string> { "===== REDLINE UI SELFTEST =====", DateTime.Now.ToString("O") };
+
+            (string title, PerfDetailAction expected)[] perfArrows =
+            {
+                ("GAME MODE", PerfDetailAction.GameModeSettings),
+                ("HIGH PERFORMANCE", PerfDetailAction.PowerPlan),
+                ("GRAPHICS SETTINGS", PerfDetailAction.GraphicsSettings),
+                ("VISUAL EFFECTS", PerfDetailAction.VisualEffects),
+                ("BACKGROUND SERVICES", PerfDetailAction.Services),
+                ("CHECK AUTOSTART", PerfDetailAction.NavigateStartup),
+                ("WINDOWS FPS BOOST", PerfDetailAction.GameBar)
+            };
+
+            try
+            {
+                await Dispatcher.InvokeAsync(() => Navigate("Optimierung"));
+                await Task.Delay(450);
+                log.Add("[OK] Seite Optimierung geladen");
+
+                foreach (var item in perfArrows)
+                {
+                    string want = RedlinePerfNavigation.ExpectedDryRunToken(item.expected);
+                    try
+                    {
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            RedlineTestHooks.Reset();
+                            OpenPerfTileDetails(item.title);
+                        });
+                        string got = RedlineTestHooks.LastAction ?? "";
+                        if (!string.Equals(got, want, StringComparison.OrdinalIgnoreCase))
+                        {
+                            failures.Add("Perf-Pfeil " + item.title + ": erwartet " + want + ", war " + got);
+                            log.Add("[FAIL] Perf-Pfeil " + item.title + " | " + got);
+                        }
+                        else
+                            log.Add("[OK] Perf-Pfeil " + item.title + " -> " + got);
+                    }
+                    catch (Exception ex)
+                    {
+                        failures.Add("Perf-Pfeil " + item.title + ": " + ex.Message);
+                        log.Add("[FAIL] Perf-Pfeil " + item.title + " | " + ex.Message);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                failures.Add("Performance: " + ex.Message);
+                log.Add("[FAIL] Performance | " + ex.Message);
+            }
 
             string[] pages =
             {
@@ -1124,6 +1174,9 @@ namespace GamingBooster_Pro
 
         private void Navigate(string page)
         {
+            if (RedlineTestHooks.DryRun)
+                RedlineTestHooks.Record("nav:" + page);
+
             StopDashboardLiveTimer();
             CurrentPage = page;
 
@@ -1782,8 +1835,36 @@ namespace GamingBooster_Pro
             return line;
         }
 
-        private UIElement PerfFeatureTile(string title, string desc, string status, RoutedEventHandler click)
+        private Button PerfTileArrowButton(RoutedEventHandler click, string tooltip)
         {
+            Button arrow = new Button
+            {
+                Content = ">",
+                Width = 32,
+                Height = 28,
+                Padding = new Thickness(0),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = Red,
+                FontSize = 18,
+                FontWeight = FontWeights.Bold,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = tooltip,
+                VerticalAlignment = VerticalAlignment.Top
+            };
+            ApplyButtonSkin(arrow, 8);
+            arrow.Click += (s, e) =>
+            {
+                e.Handled = true;
+                click(s, e);
+            };
+            return arrow;
+        }
+
+        private UIElement PerfFeatureTile(string title, string desc, string status, RoutedEventHandler cardClick, RoutedEventHandler? arrowClick = null)
+        {
+            RoutedEventHandler openDetails = arrowClick ?? ((s, e) => OpenPerfTileDetails(title));
+
             Border tile = new Border
             {
                 Background = new SolidColorBrush(Color.FromArgb(100, 18, 23, 31)),
@@ -1792,30 +1873,36 @@ namespace GamingBooster_Pro
                 CornerRadius = new CornerRadius(10),
                 Padding = new Thickness(16),
                 Margin = new Thickness(0, 0, 12, 12),
-                Width = 280,
-                Cursor = System.Windows.Input.Cursors.Hand
+                Width = 280
             };
-            tile.MouseLeftButtonUp += (s, e) => click(s, new RoutedEventArgs());
 
             StackPanel p = new StackPanel();
             Grid head = new Grid();
             head.ColumnDefinitions.Add(new ColumnDefinition());
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            head.Children.Add(new TextBlock { Text = title, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.UltraBold });
-            head.Children.Add(new TextBlock { Text = ">", Foreground = Red, FontSize = 16, FontWeight = FontWeights.Bold });
+            TextBlock titleBlock = new TextBlock { Text = title, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.UltraBold };
+            RedlineUi.ApplyCrispText(titleBlock);
+            head.Children.Add(titleBlock);
+            head.Children.Add(PerfTileArrowButton(openDetails, T("Einstellungen öffnen", "Open settings")));
             Grid.SetColumn(head.Children[1], 1);
             p.Children.Add(head);
-            p.Children.Add(new TextBlock { Text = desc, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 12) });
+
+            StackPanel body = new StackPanel { Cursor = System.Windows.Input.Cursors.Hand };
+            body.MouseLeftButtonUp += (s, e) => cardClick(s, new RoutedEventArgs());
+            body.Children.Add(new TextBlock { Text = desc, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 12) });
             StackPanel st = new StackPanel { Orientation = Orientation.Horizontal };
             st.Children.Add(new TextBlock { Text = "●", Foreground = AiGreen, FontSize = 12, Margin = new Thickness(0, 0, 6, 0) });
             st.Children.Add(new TextBlock { Text = status, Foreground = AiGreen, FontSize = 12, FontWeight = FontWeights.SemiBold });
-            p.Children.Add(st);
+            body.Children.Add(st);
+            p.Children.Add(body);
             tile.Child = p;
             return tile;
         }
 
-        private UIElement ProFeatureTile(string title, string desc, string badge, RoutedEventHandler click)
+        private UIElement ProFeatureTile(string title, string desc, string badge, RoutedEventHandler cardClick, RoutedEventHandler? arrowClick = null)
         {
+            RoutedEventHandler openDetails = arrowClick ?? ((s, e) => OpenPerfTileDetails(title));
+
             Border tile = new Border
             {
                 Background = new SolidColorBrush(Color.FromArgb(120, 40, 10, 20)),
@@ -1825,36 +1912,42 @@ namespace GamingBooster_Pro
                 Padding = new Thickness(16),
                 Margin = new Thickness(0, 0, 12, 12),
                 Width = 280,
-                Cursor = System.Windows.Input.Cursors.Hand,
                 ToolTip = desc + "\n\n" + (RedlineAppData.ProPurchaseEnabled
                     ? T("Nur mit Pro-Lizenz (10 € Lifetime).", "Pro license only (€10 lifetime).")
                     : T("Pro kommt später mit Konto (10 € Lifetime geplant).", "Pro later with account (€10 lifetime planned)."))
             };
-            tile.MouseLeftButtonUp += (s, e) => click(s, new RoutedEventArgs());
 
             StackPanel p = new StackPanel();
             Grid head = new Grid();
             head.ColumnDefinitions.Add(new ColumnDefinition());
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             head.Children.Add(new TextBlock { Text = title, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.UltraBold });
+            StackPanel rightHead = new StackPanel { Orientation = Orientation.Horizontal };
             Border proBadge = new Border
             {
                 Background = new SolidColorBrush(Color.FromRgb(110, 16, 28)),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(8, 2, 8, 2),
+                Margin = new Thickness(0, 0, 4, 0),
                 Child = new TextBlock { Text = badge, Foreground = Brushes.White, FontSize = 10, FontWeight = FontWeights.Bold }
             };
-            Grid.SetColumn(proBadge, 1);
-            head.Children.Add(proBadge);
+            rightHead.Children.Add(proBadge);
+            rightHead.Children.Add(PerfTileArrowButton(openDetails, T("Gaming-Einstellungen öffnen", "Open gaming settings")));
+            Grid.SetColumn(rightHead, 1);
+            head.Children.Add(rightHead);
             p.Children.Add(head);
-            p.Children.Add(new TextBlock { Text = desc, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) });
-            p.Children.Add(new TextBlock
+
+            StackPanel body = new StackPanel { Cursor = System.Windows.Input.Cursors.Hand };
+            body.MouseLeftButtonUp += (s, e) => cardClick(s, new RoutedEventArgs());
+            body.Children.Add(new TextBlock { Text = desc, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) });
+            body.Children.Add(new TextBlock
             {
                 Text = IsProActive() ? T("● Pro aktiv", "● Pro active") : T("● Key in Einstellungen", "● Key in Settings"),
                 Foreground = IsProActive() ? AiGreen : AiOrange,
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold
             });
+            p.Children.Add(body);
             tile.Child = p;
             return tile;
         }
@@ -3404,18 +3497,27 @@ namespace GamingBooster_Pro
             left.Children.Add(profCard);
 
             WrapPanel tiles = new WrapPanel();
-            tiles.Children.Add(PerfFeatureTile("GAME MODE", T("Aktiviere den Gaming-Modus für bessere Performance.", "Enable Game Mode for better performance."), IsGameModeEnabled() ? T("Aktiv", "Active") : T("Prüfen", "Check"), async (s, e) => await SetGameModeEnabled(true)));
-            tiles.Children.Add(PerfFeatureTile(T("HOCHLEISTUNGSMODUS", "HIGH PERFORMANCE"), T("System auf maximale Leistung.", "System set to maximum performance."), IsHighPerformanceActive() ? T("Aktiv", "Active") : T("Prüfen", "Check"), async (s, e) => await SetHighPerformance()));
-            tiles.Children.Add(PerfFeatureTile(T("GRAFIK SETTINGS", "GRAPHICS SETTINGS"), T("Optimiere Grafikoptionen für Gaming.", "Optimize graphics for gaming."), T("Öffnen", "Open"), (s, e) => OpenUri("ms-settings:display-advancedgraphics")));
-            tiles.Children.Add(PerfFeatureTile(T("VISUELLE EFFEKTE", "VISUAL EFFECTS"), T("Reduziert Effekte für mehr FPS.", "Reduces effects for more FPS."), T("Öffnen", "Open"), (s, e) => SafeStartSystem("SystemPropertiesPerformance.exe")));
-            tiles.Children.Add(PerfFeatureTile(T("HINTERGRUNDDIENSTE", "BACKGROUND SERVICES"), T("Deaktiviert unnötige Dienste.", "Disables unnecessary services."), T("Verwalten", "Manage"), (s, e) => Navigate("Startup")));
-            tiles.Children.Add(PerfFeatureTile(T("AUTOSTART PRÜFEN", "CHECK AUTOSTART"), T("Verwalte Autostart-Programme.", "Manage startup programs."), T("Verwalten", "Manage"), (s, e) => Navigate("Startup")));
+            tiles.Children.Add(PerfFeatureTile("GAME MODE", T("Aktiviere den Gaming-Modus für bessere Performance.", "Enable Game Mode for better performance."), IsGameModeEnabled() ? T("Aktiv", "Active") : T("Prüfen", "Check"),
+                async (s, e) => await SetGameModeEnabled(true),
+                (s, e) => OpenUri("ms-settings:gaming-gamemode")));
+            tiles.Children.Add(PerfFeatureTile(T("HOCHLEISTUNGSMODUS", "HIGH PERFORMANCE"), T("System auf maximale Leistung.", "System set to maximum performance."), IsHighPerformanceActive() ? T("Aktiv", "Active") : T("Prüfen", "Check"),
+                async (s, e) => await SetHighPerformance(),
+                (s, e) => SafeStartSystem("powercfg.cpl")));
+            tiles.Children.Add(PerfFeatureTile(T("GRAFIK SETTINGS", "GRAPHICS SETTINGS"), T("Optimiere Grafikoptionen für Gaming.", "Optimize graphics for gaming."), T("Öffnen", "Open"),
+                (s, e) => OpenUri("ms-settings:display-advancedgraphics")));
+            tiles.Children.Add(PerfFeatureTile(T("VISUELLE EFFEKTE", "VISUAL EFFECTS"), T("Reduziert Effekte für mehr FPS.", "Reduces effects for more FPS."), T("Öffnen", "Open"),
+                (s, e) => SafeStartSystem("SystemPropertiesPerformance.exe")));
+            tiles.Children.Add(PerfFeatureTile(T("HINTERGRUNDDIENSTE", "BACKGROUND SERVICES"), T("Deaktiviert unnötige Dienste.", "Disables unnecessary services."), T("Verwalten", "Manage"),
+                (s, e) => SafeStartSystem("services.msc")));
+            tiles.Children.Add(PerfFeatureTile(T("AUTOSTART PRÜFEN", "CHECK AUTOSTART"), T("Verwalte Autostart-Programme.", "Manage startup programs."), T("Verwalten", "Manage"),
+                (s, e) => Navigate("Startup")));
             tiles.Children.Add(ProFeatureTile(
                 "WINDOWS FPS BOOST",
                 T("Pro: Game Mode, Energieplan, Game Bar, visuelle Effekte und Hintergrund-Dienste in einem Durchlauf.",
                   "Pro: Game Mode, power plan, Game Bar, visual effects and background tuning in one run."),
                 "PRO",
-                WindowsFpsBoostPro_Click));
+                WindowsFpsBoostPro_Click,
+                (s, e) => OpenUri("ms-settings:gaming-gamebar")));
             left.Children.Add(tiles);
 
             Grid.SetColumn(left, 0);
@@ -5820,41 +5922,37 @@ private Border ModernOutputCard(string startText)
         }
 
 
+        private void OpenPerfTileDetails(string title) => OpenToggleDetails(title);
+
         private void OpenToggleDetails(string title)
         {
-            string t = title.ToLowerInvariant();
-
-            if (t.Contains("game"))
+            switch (RedlinePerfNavigation.Resolve(title))
             {
-                OpenUri("ms-settings:gaming-gamemode");
-                return;
+                case PerfDetailAction.NavigateStartup:
+                    Navigate("Startup");
+                    break;
+                case PerfDetailAction.GameModeSettings:
+                    OpenUri("ms-settings:gaming-gamemode");
+                    break;
+                case PerfDetailAction.GameBar:
+                    OpenUri("ms-settings:gaming-gamebar");
+                    break;
+                case PerfDetailAction.PowerPlan:
+                    SafeStartSystem("powercfg.cpl");
+                    break;
+                case PerfDetailAction.GraphicsSettings:
+                    OpenUri("ms-settings:display-advancedgraphics");
+                    break;
+                case PerfDetailAction.Services:
+                    SafeStartSystem("services.msc");
+                    break;
+                case PerfDetailAction.VisualEffects:
+                    SafeStartSystem("SystemPropertiesPerformance.exe");
+                    break;
+                default:
+                    Navigate("Settings");
+                    break;
             }
-
-            if (t.Contains("hoch") || t.Contains("high") || t.Contains("power"))
-            {
-                SafeStartSystem("powercfg.cpl");
-                return;
-            }
-
-            if (t.Contains("hardware") || t.Contains("gpu"))
-            {
-                OpenUri("ms-settings:display-advancedgraphics");
-                return;
-            }
-
-            if (t.Contains("hinter") || t.Contains("background"))
-            {
-                Navigate("Startup");
-                return;
-            }
-
-            if (t.Contains("visuell") || t.Contains("visual"))
-            {
-                SafeStartSystem("SystemPropertiesPerformance.exe");
-                return;
-            }
-
-            Navigate("Settings");
         }
         private UIElement DashboardSwitchRow(string title, string sub, bool initialState, Func<bool, Task> onToggle)
         {
@@ -9318,6 +9416,12 @@ private Border ModernOutputCard(string startText)
 
         private void SafeStartSystem(string fileName, string arguments = "", bool asAdmin = false)
         {
+            if (RedlineTestHooks.DryRun)
+            {
+                RedlineTestHooks.Record("proc:" + fileName);
+                return;
+            }
+
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo
@@ -9361,6 +9465,12 @@ private Border ModernOutputCard(string startText)
 
         private void OpenUri(string uri)
         {
+            if (RedlineTestHooks.DryRun)
+            {
+                RedlineTestHooks.Record("uri:" + uri);
+                return;
+            }
+
             try
             {
                 Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });

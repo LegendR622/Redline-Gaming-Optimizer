@@ -23,6 +23,8 @@ namespace GamingBooster_Pro
             Ok("=== Redline SelfTest (Logik) ===");
             TestLicenseKeys();
             TestRecommendedCategories();
+            TestPerfTileRouting();
+            TestHardwareDriverLinks();
             TestVersionCompare();
             TestVersionJsonLocal();
             TestUpdateLogRoundtrip();
@@ -87,6 +89,43 @@ namespace GamingBooster_Pro
             if (!wasPro) data.DeactivateLicenseKey();
         }
 
+        private static void TestPerfTileRouting()
+        {
+            void Expect(string title, PerfDetailAction action)
+            {
+                PerfDetailAction got = RedlinePerfNavigation.Resolve(title);
+                Assert("Perf-Pfeil " + title, got == action, got + " erwartet " + action);
+            }
+
+            Expect("GAME MODE", PerfDetailAction.GameModeSettings);
+            Expect("HIGH PERFORMANCE", PerfDetailAction.PowerPlan);
+            Expect("GRAFIK SETTINGS", PerfDetailAction.GraphicsSettings);
+            Expect("VISUAL EFFECTS", PerfDetailAction.VisualEffects);
+            Expect("BACKGROUND SERVICES", PerfDetailAction.Services);
+            Expect("HINTERGRUNDDIENSTE", PerfDetailAction.Services);
+            Expect("CHECK AUTOSTART", PerfDetailAction.NavigateStartup);
+            Expect("AUTOSTART PRÜFEN", PerfDetailAction.NavigateStartup);
+            Expect("WINDOWS FPS BOOST", PerfDetailAction.GameBar);
+            Assert("Perf DryRun Token Game Mode",
+                RedlinePerfNavigation.ExpectedDryRunToken(PerfDetailAction.GameModeSettings) == "uri:ms-settings:gaming-gamemode");
+        }
+
+        private static void TestHardwareDriverLinks()
+        {
+            HardwareProfile hp = new HardwareProfile
+            {
+                CpuName = "AMD Ryzen 7 5800X",
+                GpuName = "NVIDIA GeForce RTX 3070",
+                MotherboardManufacturer = "ASUSTeK COMPUTER INC.",
+                MotherboardProduct = "PRIME B550-PLUS"
+            };
+            List<DriverUpdateLink> links = RedlineHardwareProfile.BuildSmartUpdateLinks(hp, Array.Empty<string>());
+            Assert("Smart Links mindestens 4", links.Count >= 4, links.Count.ToString());
+            Assert("Smart Links NVIDIA", links.Any(l => l.Id == "nvidia"));
+            Assert("Smart Links ASUS MB", links.Any(l => l.Id == "mb-asus"));
+            Assert("Smart Links Windows Update", links.Any(l => l.Id == "winupdate"));
+        }
+
         private static void TestRecommendedCategories()
         {
             string[] recommended = { "Browser Cache", "Temporäre Dateien", "Shader Cache" };
@@ -105,9 +144,9 @@ namespace GamingBooster_Pro
 
         private static void TestVersionCompare()
         {
-            Assert("9.5 > 9.4", CompareVer("9.5", "9.4") > 0);
-            Assert("9.4 < 9.5", CompareVer("9.4", "9.5") < 0);
-            Assert("9.5 == 9.5", CompareVer("9.5", "9.5") == 0);
+            Assert("9.9 > 9.8", CompareVer("9.9", "9.8") > 0);
+            Assert("9.8 < 9.9", CompareVer("9.8", "9.9") < 0);
+            Assert("9.9 == 9.9", CompareVer("9.9", "9.9") == 0);
         }
 
         private static int CompareVer(string online, string current)
@@ -150,13 +189,13 @@ namespace GamingBooster_Pro
 
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
             string ver = doc.RootElement.GetProperty("version").GetString() ?? "";
-            Assert("version.json Version 9.5", ver == "9.5", "v" + ver);
+            Assert("version.json Version 9.9", ver == "9.9", "v" + ver);
             Assert("version.json downloadUrl", doc.RootElement.TryGetProperty("downloadUrl", out _));
         }
 
         private static void TestUpdateLogRoundtrip()
         {
-            RedlineUpdateLog.Add("9.5-test", "9.5", "selftest", "OK selftest");
+            RedlineUpdateLog.Add("9.9-test", "9.9", "selftest", "OK selftest");
             var all = RedlineUpdateLog.LoadAll();
             Assert("Update-Log Eintrag", all.Any(e => e.Result.Contains("selftest", StringComparison.OrdinalIgnoreCase)));
         }
@@ -204,7 +243,7 @@ namespace GamingBooster_Pro
             try
             {
                 using HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineSelfTest/9.5");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineSelfTest/9.9");
                 string json = await client.GetStringAsync(url).ConfigureAwait(false);
                 if (!json.TrimStart().StartsWith("{", StringComparison.Ordinal))
                 {

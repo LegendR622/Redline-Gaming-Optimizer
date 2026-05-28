@@ -33,7 +33,7 @@ function Stop-RedlineApp {
 Write-Host ""
 Stop-RedlineApp
 
-Write-Host "=== Redline Vollständiger Funktionstest V9.5 ===" -ForegroundColor Cyan
+Write-Host "=== Redline Vollständiger Funktionstest V9.9 ===" -ForegroundColor Cyan
 Write-Host "Logik-Läufe: $LogicRuns | UI-Läufe: $UiRuns | Cleaner-Scan: $WithCleanerScan"
 Write-Host ""
 
@@ -66,13 +66,15 @@ if (-not (Test-Path $exe)) {
     } catch { Add-Result "dotnet publish" $false $_.Exception.Message }
 }
 if (-not (Test-Path $exe) -and (Test-Path $exeBin)) { $exe = $exeBin }
+# Immer die frisch gebaute EXE nutzen (Publish-Ordner kann veraltet sein)
+if (Test-Path $exeBin) { $exe = $exeBin }
 Add-Result "Test-EXE" (Test-Path $exe) $exe
 
 # --- version.json ---
 $verFile = Join-Path $root "version.json"
 if (Test-Path $verFile) {
     $vj = Get-Content $verFile -Raw | ConvertFrom-Json
-    Add-Result "version.json Version" ($vj.version -eq "9.5") ("v$($vj.version)")
+    Add-Result "version.json Version" ($vj.version -eq "9.9") ("v$($vj.version)")
     Add-Result "version.json downloadUrl" ($null -ne $vj.downloadUrl) $vj.downloadUrl
 } else {
     Add-Result "version.json" $false "fehlt"
