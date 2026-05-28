@@ -1,6 +1,6 @@
 ﻿{
   "packageType": "zip",
-  "version": "9.14",
-  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.14/Redline_V9.14_win-x64.zip",
-  "notes": "V9.14: Auto-Update beim App-Start (2 Sek nach Start, Download+Install automatisch)."
+  "version": "9.15",
+  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.15/Redline_V9.15_win-x64.zip",
+  "notes": "V9.15: Update-Log kurz (aktuell), Treiber AUTO Suche+Install, Einzel-Update pro Gerät (⬇)."
 }

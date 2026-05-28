@@ -103,7 +103,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.14";
+        private const string CurrentAppVersion = "9.15";
 
         private bool _startupAutoUpdateStarted;
 
@@ -3983,8 +3983,31 @@ namespace GamingBooster_Pro
                 string st = DriverStatusText(d, deviceErrors);
                 DriverStatusToUi(st, out string risk, out Brush riskColor);
                 string desc = d.Provider + " · v" + (d.Version.Length > 20 ? d.Version[..20] + "…" : d.Version);
-                _driverPreviewHost.Children.Add(SecurityTableRow(d.DeviceName, desc, TranslateDriverStatus(st), risk, riskColor, "⚙", DriverScan_Click));
+                string device = d.DeviceName;
+                RoutedEventHandler action = st == "SYSTEM"
+                    ? DriverScan_Click
+                    : (_, e) => _ = DriverSingleUpdateAsync(device);
+                string icon = st == "SYSTEM" ? "⚙" : "⬇";
+                _driverPreviewHost.Children.Add(SecurityTableRow(d.DeviceName, desc, TranslateDriverStatus(st), risk, riskColor, icon, action));
             }
+        }
+
+        private async Task DriverSingleUpdateAsync(string deviceName)
+        {
+            if (!TryInAppDriverFeature()) return;
+            PrepareActionOutput();
+            await SafeRun(T("Einzel-Treiber-Update", "Single driver update"), async () =>
+            {
+                await Log("===== " + T("EINZEL-UPDATE: ", "SINGLE UPDATE: ") + deviceName + " =====");
+                if (!IsAdmin())
+                    await Log(T("Hinweis: Admin empfohlen für Installation.", "Note: Admin recommended for install."));
+                await RedlineDriverUpdateService.Instance.InstallSingleByDeviceHintAsync(
+                    deviceName,
+                    async msg => await Log(msg),
+                    IsEnglish());
+                InvalidateDriversCache();
+                ScheduleDriverPreviewLoad();
+            });
         }
 
         private void DriverStatusToUi(string status, out string risk, out Brush color)
@@ -4093,8 +4116,8 @@ namespace GamingBooster_Pro
             inAppP.Children.Add(new TextBlock
             {
                 Text = RedlineFeatureGate.InAppDriverUpdateEnabled
-                    ? T("Sucht und installiert Treiber direkt in Redline (Windows Update + winget). Admin empfohlen.",
-                        "Searches and installs drivers inside Redline (Windows Update + winget). Admin recommended.")
+                    ? T("AUTO UPDATE: sucht Windows-Treiber und installiert sie automatisch. In der Liste: ⬇ = Einzel-Update.",
+                        "AUTO UPDATE: searches Windows drivers and installs automatically. In list: ⬇ = single update.")
                     : T("Bald verfügbar · Coming Soon – wird für alle Nutzer in der Free-Version freigeschaltet.",
                         "Coming soon – will be unlocked for all users in the free version."),
                 Foreground = Muted,
@@ -4105,7 +4128,7 @@ namespace GamingBooster_Pro
             StackPanel inAppBtns = new StackPanel { Orientation = Orientation.Horizontal };
             if (RedlineFeatureGate.InAppDriverUpdateEnabled && IsProActive())
             {
-                Button autoInApp = RedButton("🔄  " + T("AUTO UPDATE", "AUTO UPDATE"), DriversInAppAutoUpdate_Click);
+                Button autoInApp = RedButton("🔄  " + T("AUTO: SUCHE + INSTALL", "AUTO: SEARCH + INSTALL"), DriversInAppAutoUpdate_Click);
                 autoInApp.Width = 200;
                 autoInApp.Height = 44;
                 inAppBtns.Children.Add(autoInApp);
@@ -4146,10 +4169,10 @@ namespace GamingBooster_Pro
             if (RedlineFeatureGate.InAppDriverUpdateEnabled && IsProActive())
             {
                 tiles.Children.Add(ModernTile(T("AUTO UPDATE", "AUTO UPDATE"),
-                    T("In-App: Scan + Windows Update + winget", "In-app: scan + Windows Update + winget"),
+                    T("Suche + automatische Installation", "Search + automatic install"),
                     "AUTO", Red, DriversInAppAutoUpdate_Click));
                 tiles.Children.Add(ModernTile(T("INSTALLIEREN", "INSTALL"),
-                    T("Gefundene Windows-Treiber installieren", "Install found Windows drivers"),
+                    T("Nur installieren (nach Suche)", "Install only (after search)"),
                     "⬇", AiGreen, DriversInstallUpdates_Click));
             }
             else
@@ -10254,10 +10277,7 @@ private Border ModernOutputCard(string startText)
 
         private string GetUpdatePageStartupLog()
         {
-            string history = RedlineUpdateLog.FormatForUi(IsEnglish());
-            return history + Environment.NewLine + Environment.NewLine
-                + T("Bereit. Klicke „Nur prüfen“ oder „Update automatisch installieren“.",
-                    "Ready. Click \"Check only\" or \"Install update automatically\".");
+            return RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), CurrentAppVersion);
         }
 
         private static void RecordUpdateLog(string installed, string online, string notes, string result)
@@ -10328,11 +10348,11 @@ private Border ModernOutputCard(string startText)
 
                 if (compare < 0)
                 {
-                    string msg = "✅ " + T("Aktuell (installiert V", "Up to date (installed V") + CurrentAppVersion + ", online V" + latestVersion + ")";
+                    string msg = "✅ " + T("Neueste Version ist aktuell (V", "Latest version is current (V") + CurrentAppVersion + ").";
                     await Log(msg);
                     RecordUpdateLog(CurrentAppVersion, latestVersion, notes, msg);
                     await Log("");
-                    await Log(RedlineUpdateLog.FormatForUi(IsEnglish()));
+                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), CurrentAppVersion));
                     if (Progress != null)
                         Progress.Value = 100;
                     return;
@@ -10340,11 +10360,11 @@ private Border ModernOutputCard(string startText)
 
                 if (compare == 0)
                 {
-                    string msg = "✅ " + T("Neueste Version V", "Latest version V") + CurrentAppVersion + T(" installiert", " installed");
+                    string msg = "✅ " + T("Neueste Version ist aktuell (V", "Latest version is current (V") + CurrentAppVersion + ").";
                     await Log(msg);
                     RecordUpdateLog(CurrentAppVersion, latestVersion, notes, msg);
                     await Log("");
-                    await Log(RedlineUpdateLog.FormatForUi(IsEnglish()));
+                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), CurrentAppVersion));
                     if (Progress != null)
                         Progress.Value = 100;
                     return;
@@ -10358,7 +10378,7 @@ private Border ModernOutputCard(string startText)
                 if (!allowDownload)
                 {
                     await Log("");
-                    await Log(RedlineUpdateLog.FormatForUi(IsEnglish()));
+                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), CurrentAppVersion));
                     return;
                 }
 
