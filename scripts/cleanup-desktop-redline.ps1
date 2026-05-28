@@ -4,9 +4,10 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $deskExe = Join-Path $desktop "Redline Gaming Optimizer.exe"
 
 @(
-    "REDLINE_Intro.mp4", "REDLINE_Promo.mp4", "REDLINE.mp4",
+    "REDLINE_Intro.mp4", "REDLINE_Promo.mp4",
     "Redline Gaming Optimizer.lnk", "Redline Gaming Optimizer V9.lnk",
-    "Redline UPDATE-TEST (V9.0).lnk", "GamingBooster_Pro.exe"
+    "Redline UPDATE-TEST (V9.0).lnk", "GamingBooster_Pro.exe",
+    "Redline_Gaming_Optimizer.exe"
 ) | ForEach-Object {
     $p = Join-Path $desktop $_
     if (Test-Path $p) { Remove-Item $p -Force; Write-Host "Geloescht: $_" }
@@ -23,7 +24,8 @@ if ((Test-Path $df) -and -not (Test-Path $repoCsproj)) {
     Write-Host "Ordner-Kopie geloescht: $df"
 }
 
-$src = Join-Path $root "publish\win-x64\GamingBooster_Pro.exe"
+$src = Join-Path $root "publish\win-x64-full\GamingBooster_Pro.exe"
+if (-not (Test-Path $src)) { $src = Join-Path $root "publish\win-x64\GamingBooster_Pro.exe" }
 if (-not (Test-Path $src)) {
     Write-Host "Publish fehlt: $src"
     exit 1

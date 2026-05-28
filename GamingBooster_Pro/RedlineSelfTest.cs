@@ -74,11 +74,16 @@ namespace GamingBooster_Pro
             var data = RedlineAppData.Current;
             bool wasPro = data.ProLicenseActive;
             data.DeactivateLicenseKey();
-            Assert("Aktivierung DEV-Key", data.TryActivateLicenseKey("REDLINE-PRO-LIFETIME-DEV", out string err) && string.IsNullOrEmpty(err), err);
-            Assert("DevProEnabled nach DEV-Key", data.DevProEnabled);
-            Assert("IsProActive nach Key", data.IsProActive);
+            Assert("Entwickler-PC erkannt", RedlineDevAuth.IsAuthorizedDeveloperMachine(), RedlineDevAuth.GetMachineLabel());
+            Assert("Hardware Entwickler-Pro", data.ApplyDeveloperProFromHardware());
+            Assert("IsProActive nach Hardware", data.IsProActive);
             data.DeactivateLicenseKey();
-            Assert("Kunden-Key abgelehnt", !data.TryActivateLicenseKey("REDLINE-PRO-LIFETIME-CUSTOMER1234", out string err2));
+            if (RedlineDevAuth.IsAuthorizedDeveloperMachine())
+            {
+                Assert("DEV-Key auf Entwickler-PC", data.TryActivateLicenseKey("REDLINE-PRO-LIFETIME-DEV", out string err) && string.IsNullOrEmpty(err), err);
+                data.DeactivateLicenseKey();
+            }
+            Assert("Kunden-Key abgelehnt", !data.TryActivateLicenseKey("REDLINE-PRO-LIFETIME-CUSTOMER1234", out _));
             if (!wasPro) data.DeactivateLicenseKey();
         }
 

@@ -54,19 +54,21 @@ function Get-MusicFile {
 }
 
 Write-Host "Starte Redline DEMO-TOUR (alle Seiten)..." -ForegroundColor Cyan
-Stop-Process -Name "GamingBooster_Pro" -Force -ErrorAction SilentlyContinue
+Stop-Process -Name "GamingBooster_Pro","Redline Gaming Optimizer" -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 600
 
-$env:REDLINE_DEMO_TOUR = "1"
 $env:REDLINE_DEMO_PAGE_MS = "$SecondsPerPage"
 Remove-Item Env:REDLINE_SKIP_INTRO -ErrorAction SilentlyContinue
 Remove-Item Env:REDLINE_START_PAGE -ErrorAction SilentlyContinue
+Remove-Item Env:REDLINE_DEMO_TOUR -ErrorAction SilentlyContinue
 
-$p = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+$p = Start-Process -FilePath $exe -ArgumentList "--demo-tour" -WorkingDirectory (Split-Path $exe) -PassThru
 $hwnd = [IntPtr]::Zero
 for ($i = 0; $i -lt 200; $i++) {
     Start-Sleep -Milliseconds 200
-    $proc = Get-Process -Name "GamingBooster_Pro" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+    $proc = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        ($_.ProcessName -eq "GamingBooster_Pro" -or $_.ProcessName -eq "Redline Gaming Optimizer") -and $_.MainWindowHandle -ne 0
+    } | Select-Object -First 1
     if ($proc) { $hwnd = [IntPtr]$proc.MainWindowHandle; break }
 }
 if ($hwnd -eq [IntPtr]::Zero) { throw "Fenster nicht gefunden." }
@@ -90,9 +92,9 @@ Write-Host "Aufnahme ${RecordSeconds}s (Intro + 11 Seiten, inkl. Scroll)..." -Fo
 & $ff -y -f gdigrab -framerate 24 -draw_mouse 0 `
     -offset_x $posX -offset_y $posY -video_size "${appW}x${appH}" -i desktop -t $RecordSeconds `
     -vf "format=yuv420p" `
-    -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p $rawVideo
+    -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p $rawVideo
 
-Stop-Process -Name "GamingBooster_Pro" -Force -ErrorAction SilentlyContinue
+Stop-Process -Name "GamingBooster_Pro","Redline Gaming Optimizer" -Force -ErrorAction SilentlyContinue
 Remove-Item Env:REDLINE_DEMO_TOUR -ErrorAction SilentlyContinue
 
 if ($MusicPath -and (Test-Path $MusicPath)) { Copy-Item $MusicPath $defaultMusic -Force }

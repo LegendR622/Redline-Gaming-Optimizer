@@ -103,7 +103,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.6";
+        private const string CurrentAppVersion = "9.7";
 
         private static readonly string[] CleanerRecommendedCategories =
         {
@@ -191,7 +191,8 @@ namespace GamingBooster_Pro
 
             Loaded += async (s, e) =>
             {
-                RedlineAppData.Current.Load();
+                RedlineAppData.Current.InitializeLicenseOnStartup();
+                RedlineAppData.Current.Save();
                 UiLanguage = RedlineAppData.Current.Language;
                 GraphicsMode = RedlineAppData.Current.GraphicsMode;
                 ScanDepthMode = RedlineAppData.Current.ScanDepth;
@@ -385,8 +386,10 @@ namespace GamingBooster_Pro
                 || string.Equals(a, "-nosplash", StringComparison.OrdinalIgnoreCase));
         }
 
+        /// <summary>Nur mit --demo-tour (Promo-Aufnahme). Kein Env-Var – sonst scrollt die App versehentlich.</summary>
         private static bool IsDemoTourMode() =>
-            string.Equals(Environment.GetEnvironmentVariable("REDLINE_DEMO_TOUR"), "1", StringComparison.Ordinal);
+            Environment.GetCommandLineArgs().Any(a =>
+                string.Equals(a, "--demo-tour", StringComparison.OrdinalIgnoreCase));
 
         private async Task RunDemoTourAsync()
         {
@@ -4745,38 +4748,40 @@ namespace GamingBooster_Pro
                 sp.Children.Add(activate);
             }
 
-            if (!RedlineAppData.ProPurchaseEnabled)
+            if (!RedlineAppData.ProPurchaseEnabled && RedlineDevAuth.IsAuthorizedDeveloperMachine())
             {
                 sp.Children.Add(new TextBlock
                 {
-                    Text = T("Entwickler (nur für dich)", "Developer (for you only)"),
-                    Foreground = Brushes.White,
+                    Text = T("Entwickler-PC erkannt: ", "Developer PC detected: ") + RedlineDevAuth.GetMachineLabel(),
+                    Foreground = AiGreen,
                     FontSize = 12,
                     FontWeight = FontWeights.SemiBold,
-                    Margin = new Thickness(0, 10, 0, 6)
+                    Margin = new Thickness(0, 10, 0, 6),
+                    ToolTip = T("Pro wird nur auf diesem PC automatisch freigeschaltet (Hardware-ID). Keys funktionieren nur hier.", "Pro is auto-enabled only on this PC (hardware ID). Keys work only here.")
                 });
-                TextBox devKey = new TextBox
+                if (!IsProActive())
                 {
-                    Height = 36,
-                    Margin = new Thickness(0, 0, 0, 6),
-                    Background = new SolidColorBrush(Color.FromRgb(16, 21, 29)),
-                    Foreground = Brushes.White,
-                    BorderBrush = Border,
-                    ToolTip = "REDLINE-PRO-LIFETIME-DEV"
-                };
-                sp.Children.Add(devKey);
-                Button devBtn = OutlineButton(T("Entwickler-Pro aktivieren", "Activate developer Pro"), (s, e) =>
-                {
-                    if (RedlineAppData.Current.TryActivateLicenseKey(devKey.Text, out string err))
+                    Button hwBtn = RedButton(T("ENTWICKLER-PRO VON DIESEM PC", "DEVELOPER PRO FROM THIS PC"), (s, e) =>
                     {
-                        PersistSettings();
-                        MessageBox.Show(T("Entwickler-Pro aktiv.", "Developer Pro active."), "Redline", MessageBoxButton.OK, MessageBoxImage.Information);
-                        Navigate("Settings");
-                    }
-                    else
-                        MessageBox.Show(err, "Redline", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        if (RedlineAppData.Current.ApplyDeveloperProFromHardware())
+                        {
+                            PersistSettings();
+                            MessageBox.Show(T("Entwickler-Pro aktiv – alle Funktionen frei.", "Developer Pro active – all features unlocked."), "Redline", MessageBoxButton.OK, MessageBoxImage.Information);
+                            Navigate("Settings");
+                        }
+                    });
+                    hwBtn.Height = 40;
+                    hwBtn.Margin = new Thickness(0, 0, 0, 6);
+                    sp.Children.Add(hwBtn);
+                }
+                sp.Children.Add(new TextBlock
+                {
+                    Text = T("Optionaler Master-Key (nur dieser PC): REDLINE-PRO-V9-IMMISCH", "Optional master key (this PC only): REDLINE-PRO-V9-IMMISCH"),
+                    Foreground = Muted,
+                    FontSize = 10,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 4)
                 });
-                sp.Children.Add(devBtn);
             }
 
             sp.Children.Add(new TextBlock

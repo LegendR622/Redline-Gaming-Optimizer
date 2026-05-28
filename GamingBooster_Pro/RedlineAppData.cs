@@ -112,7 +112,16 @@ namespace GamingBooster_Pro
             }
 
             if (isDev)
+            {
+                if (!RedlineDevAuth.IsAuthorizedDeveloperMachine())
+                {
+                    error = Language == "EN"
+                        ? "Developer keys only work on the authorized developer PC (hardware binding)."
+                        : "Entwickler-Keys funktionieren nur auf dem autorisierten Entwickler-PC (Hardware-Erkennung).";
+                    return false;
+                }
                 DevProEnabled = true;
+            }
 
             ProLicenseActive = true;
             Tier = LicenseTier.Pro;
@@ -142,6 +151,35 @@ namespace GamingBooster_Pro
                 if (Tier == LicenseTier.Pro)
                     Tier = LicenseTier.Free;
             }
+        }
+
+        public void SanitizeDeveloperProState()
+        {
+            if (DevProEnabled && !RedlineDevAuth.IsAuthorizedDeveloperMachine())
+            {
+                DevProEnabled = false;
+                if (!ProPurchaseEnabled || !ProLicenseActive)
+                {
+                    ProLicenseActive = false;
+                    ProLicenseMasked = "";
+                    if (Tier == LicenseTier.Pro)
+                        Tier = LicenseTier.Free;
+                }
+            }
+        }
+
+        /// <summary>Entwickler-Pro automatisch auf autorisiertem PC (Tobias Hardware).</summary>
+        public bool ApplyDeveloperProFromHardware()
+        {
+            if (!RedlineDevAuth.IsAuthorizedDeveloperMachine())
+                return false;
+
+            DevProEnabled = true;
+            ProLicenseActive = true;
+            Tier = LicenseTier.Pro;
+            string pc = Environment.MachineName;
+            ProLicenseMasked = pc.Length <= 4 ? "****" : "****" + pc[^4..];
+            return true;
         }
 
         public string LastScanLabel
@@ -199,8 +237,25 @@ namespace GamingBooster_Pro
                 SecurityScore = dto.SecurityScore;
 
                 EnforcePurchasePolicyOnLoad();
+                SanitizeDeveloperProState();
+                ApplyDeveloperProFromHardware();
             }
             catch { }
+        }
+
+        public void InitializeLicenseOnStartup()
+        {
+            try
+            {
+                if (!File.Exists(SettingsPath))
+                    ApplyDeveloperProFromHardware();
+                else
+                    Load();
+            }
+            catch
+            {
+                ApplyDeveloperProFromHardware();
+            }
         }
 
         public void Save()

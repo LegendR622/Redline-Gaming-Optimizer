@@ -166,9 +166,8 @@ Stop-RedlineApp
 
 # --- Demo-Tour (alle Menüseiten, kein Crash) ---
 $env:REDLINE_SKIP_INTRO = "1"
-$env:REDLINE_DEMO_TOUR = "1"
 $env:REDLINE_DEMO_PAGE_MS = "900"
-$pTour = Start-Process -FilePath $exe -ArgumentList "--nosplash" -PassThru
+$pTour = Start-Process -FilePath $exe -ArgumentList "--nosplash","--demo-tour" -PassThru
 Start-Sleep -Seconds 28
 $crashed = $pTour.HasExited -and $pTour.ExitCode -ne 0
 $stillRunning = -not $pTour.HasExited
@@ -178,7 +177,6 @@ if ($stillRunning) {
 } else {
     Add-Result "Demo-Tour (kein Absturz)" (-not $crashed) ("Exit $($pTour.ExitCode)")
 }
-Remove-Item Env:REDLINE_DEMO_TOUR -ErrorAction SilentlyContinue
 Remove-Item Env:REDLINE_DEMO_PAGE_MS -ErrorAction SilentlyContinue
 
 Stop-RedlineApp

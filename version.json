@@ -1,6 +1,6 @@
-﻿{
-    "packageType":  "zip",
-    "version":  "9.6",
-    "downloadUrl":  "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.6/Redline_V9.6_win-x64.zip",
-    "notes":  "Redline Gaming Optimizer V9.6"
-}
+﻿{
+    "packageType": "zip",
+    "version": "9.7",
+    "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.7/Redline_V9.7_win-x64.zip",
+    "notes": "V9.7: Entwickler-Pro nur auf autorisiertem PC, kein Auto-Scroll, Pro-Kauf noch gesperrt (Konto folgt)."
+}
