@@ -103,14 +103,13 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.12";
+        private const string CurrentAppVersion = "9.13";
 
         private static readonly string[] CleanerRecommendedCategories =
         {
             "Browser Cache", "Temporäre Dateien", "Shader Cache"
         };
-        // jsDelivr statt raw.githubusercontent.com (kein veralteter CDN-Cache auf dem Client)
-        private const string UpdateJsonUrl = "https://cdn.jsdelivr.net/gh/LegendR622/Redline-Gaming-Optimizer@main/version.json";
+        // Update-Quellen: siehe RedlineOnlineUpdate (GitHub raw + Releases API, jsDelivr nur Fallback)
 
         private readonly RedlineTheme _theme = new RedlineTheme();
         private Brush Bg => _theme.Bg;
@@ -10264,35 +10263,32 @@ private Border ModernOutputCard(string startText)
 
                 await Log("===== REDLINE UPDATE CHECK =====");
                 await Log("Installierte Version: " + CurrentAppVersion);
-                string jsonUrl = UpdateJsonUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                await Log("Prüfe: " + jsonUrl);
+                await Log(T("Prüfe GitHub (raw + Releases API + CDN)...", "Checking GitHub (raw + Releases API + CDN)..."));
                 await Log("");
 
                 using HttpClient client = new HttpClient();
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromSeconds(60);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineGamingOptimizer/" + CurrentAppVersion);
                 client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
 
-                string json = await client.GetStringAsync(jsonUrl);
-                json = json.Trim('\uFEFF', ' ', '\r', '\n');
+                RedlineUpdateManifest? manifest = await RedlineOnlineUpdate.FetchBestManifestAsync(client, CurrentAppVersion);
 
                 if (Progress != null)
                     Progress.Value = 25;
 
-                JsonNode? node = JsonNode.Parse(json);
-
-                if (node == null)
+                if (manifest == null)
                 {
-                    await Log("Fehler: version.json konnte nicht gelesen werden.");
-                    RecordUpdateLog(CurrentAppVersion, "?", "", T("Fehler: JSON ungültig", "Error: invalid JSON"));
+                    await Log(T("Fehler: Keine Update-Quelle erreichbar (Internet/Firewall?).", "Error: No update source reachable (internet/firewall?)."));
+                    RecordUpdateLog(CurrentAppVersion, "?", "", T("Fehler: offline", "Error: offline"));
                     return;
                 }
 
-                string latestVersion = node["version"]?.ToString() ?? "";
-                string downloadUrl = node["downloadUrl"]?.ToString() ?? "";
-                string notes = node["notes"]?.ToString() ?? "";
+                string latestVersion = manifest.Version;
+                string downloadUrl = manifest.DownloadUrl;
+                string notes = manifest.Notes;
 
                 await Log("Online Version: " + latestVersion);
+                await Log("Quelle: " + manifest.Source);
                 await Log("Notes: " + notes);
                 await Log("");
 
@@ -10303,7 +10299,7 @@ private Border ModernOutputCard(string startText)
                     return;
                 }
 
-                int compare = CompareVersions(latestVersion, CurrentAppVersion);
+                int compare = RedlineOnlineUpdate.CompareVersions(latestVersion, CurrentAppVersion);
 
                 if (compare < 0)
                 {
@@ -10415,13 +10411,28 @@ private Border ModernOutputCard(string startText)
             ZipFile.ExtractToDirectory(zipPath, extractDir);
 
             string appDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string currentExePath = Environment.ProcessPath
+                ?? Process.GetCurrentProcess().MainModule?.FileName
+                ?? Path.Combine(appDir, "GamingBooster_Pro.exe");
+            string currentExeName = Path.GetFileName(currentExePath);
+
+            string payloadExe = Path.Combine(extractDir, "GamingBooster_Pro.exe");
+            if (File.Exists(payloadExe)
+                && !string.Equals(currentExeName, "GamingBooster_Pro.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                string renamed = Path.Combine(extractDir, currentExeName);
+                File.Copy(payloadExe, renamed, true);
+                await Log(T("Update für Installer-EXE: ", "Update for installer EXE: ") + currentExeName);
+            }
+
+            string restartExe = Path.Combine(appDir, currentExeName);
             string updaterBat = Path.Combine(Path.GetTempPath(), "RedlineUpdate", "redline_apply_update.bat");
 
             string bat = "@echo off\r\n" +
                          "echo Redline Update wird installiert...\r\n" +
                          "timeout /t 3 /nobreak >nul\r\n" +
                          "xcopy /E /Y /I /Q \"" + extractDir + "\\*\" \"" + appDir + "\"\r\n" +
-                         "start \"\" \"" + Path.Combine(appDir, "GamingBooster_Pro.exe") + "\"\r\n" +
+                         "start \"\" \"" + restartExe + "\"\r\n" +
                          "del \"%~f0\"\r\n";
             await File.WriteAllTextAsync(updaterBat, bat);
 

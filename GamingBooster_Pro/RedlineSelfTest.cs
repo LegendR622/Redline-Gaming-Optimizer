@@ -209,7 +209,7 @@ namespace GamingBooster_Pro
 
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
             string ver = doc.RootElement.GetProperty("version").GetString() ?? "";
-            Assert("version.json Version 9.11", ver == "9.11", "v" + ver);
+            Assert("version.json Version 9.13", ver == "9.13", "v" + ver);
             Assert("version.json downloadUrl", doc.RootElement.TryGetProperty("downloadUrl", out _));
         }
 
@@ -259,20 +259,13 @@ namespace GamingBooster_Pro
                 return;
             }
 
-            const string url = "https://cdn.jsdelivr.net/gh/LegendR622/Redline-Gaming-Optimizer@main/version.json";
             try
             {
-                using HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineSelfTest/9.11");
-                string json = await client.GetStringAsync(url).ConfigureAwait(false);
-                if (!json.TrimStart().StartsWith("{", StringComparison.Ordinal))
-                {
-                    Fail("Online version.json", "kein JSON (CDN/HTML?)");
-                    return;
-                }
-                using JsonDocument doc = JsonDocument.Parse(json);
-                string ver = doc.RootElement.GetProperty("version").GetString() ?? "";
-                Assert("Online version.json erreichbar", !string.IsNullOrWhiteSpace(ver), "v" + ver);
+                using HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineSelfTest/9.13");
+                RedlineUpdateManifest? manifest = await RedlineOnlineUpdate.FetchBestManifestAsync(client, "9.0").ConfigureAwait(false);
+                Assert("Online Update-Manifest", manifest != null && !string.IsNullOrWhiteSpace(manifest.Version), manifest?.Version ?? "?");
+                Assert("Online >= 9.12", manifest != null && RedlineOnlineUpdate.CompareVersions(manifest.Version, "9.12") >= 0, manifest?.Source ?? "");
             }
             catch (Exception ex)
             {

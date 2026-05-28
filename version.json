@@ -1,6 +1,6 @@
 ﻿{
   "packageType": "zip",
-  "version": "9.12",
-  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.12/Redline_V9.12_win-x64.zip",
-  "notes": "V9.12: Quick Assist Erkennung, Remote-Anleitung, Master-Key in Einstellungen, In-App-Treiber (Pro), klarere Referenz-ID."
+  "version": "9.13",
+  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.13/Redline_V9.13_win-x64.zip",
+  "notes": "V9.13: Update-Fix – GitHub direkt (kein veraltetes CDN), Installer-EXE wird korrekt ersetzt."
 }
