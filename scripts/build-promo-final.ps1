@@ -1,5 +1,5 @@
 # EIN Promo-Build: aufraeumen, 2K aufnehmen, Effekte, NUR eine MP4 auf dem Desktop
-param([string]$MusicPath = "", [int]$RecordSeconds = 78)
+param([string]$MusicPath = "", [int]$RecordSeconds = 88)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $desktop = [Environment]::GetFolderPath("Desktop")
@@ -13,8 +13,7 @@ Write-Host "=== 1/4 Desktop aufraeumen ===" -ForegroundColor Cyan
     "REDLINE.mp4",
     "Redline Gaming Optimizer.lnk",
     "Redline Gaming Optimizer V9.lnk",
-    "Redline UPDATE-TEST (V9.0).lnk",
-    "GamingBooster_Pro.exe"
+    "Redline UPDATE-TEST (V9.0).lnk"
 ) | ForEach-Object {
     $p = Join-Path $desktop $_
     if (Test-Path $p) { Remove-Item $p -Force; Write-Host "Geloescht: $_" }
@@ -24,8 +23,8 @@ Get-ChildItem $desktop -Filter "*.mp4" -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -match 'REDLINE|Redline|GamingBooster|Intro|Promo' } |
     ForEach-Object { Remove-Item $_.FullName -Force; Write-Host "Geloescht MP4: $($_.Name)" }
 
-Get-ChildItem $desktop -Filter "GamingBooster_Pro.exe" -File -Recurse -ErrorAction SilentlyContinue |
-    ForEach-Object { Remove-Item $_.FullName -Force; Write-Host "Geloescht EXE: $($_.FullName)" }
+Get-ChildItem $desktop -Filter "GamingBooster_Pro.exe" -File -ErrorAction SilentlyContinue |
+    ForEach-Object { Remove-Item $_.FullName -Force; Write-Host "Geloescht EXE: $($_.Name)" }
 
 $deskFolder = Join-Path $desktop "GamingBooster_Pro"
 $repoCsproj = Join-Path $deskFolder "GamingBooster_Pro\GamingBooster_Pro.csproj"
@@ -44,7 +43,7 @@ if (Test-Path $exe) {
 
 Write-Host "=== 2/4 Aufnahme (2K wird beim Export gesetzt) ===" -ForegroundColor Cyan
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptsDir "create-intro-mp4.ps1") `
-    -RecordSeconds $RecordSeconds -SecondsPerPage 5200 -SkipDesktopCopy
+    -RecordSeconds $RecordSeconds -SecondsPerPage 6000 -SkipDesktopCopy
 
 $raw = Join-Path $root "video\promo_raw.mp4"
 $staged = Join-Path $root "video\REDLINE_staged.mp4"

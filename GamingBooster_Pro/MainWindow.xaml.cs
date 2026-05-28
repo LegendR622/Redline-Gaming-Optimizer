@@ -99,7 +99,7 @@ namespace GamingBooster_Pro
         private Button? _cleanerCleanBtn;
         private TextBlock? _cleanerScanHint;
 
-        private const string CurrentAppVersion = "9.2";
+        private const string CurrentAppVersion = "9.3";
         // jsDelivr statt raw.githubusercontent.com (kein veralteter CDN-Cache auf dem Client)
         private const string UpdateJsonUrl = "https://cdn.jsdelivr.net/gh/LegendR622/Redline-Gaming-Optimizer@main/version.json";
 
@@ -286,8 +286,9 @@ namespace GamingBooster_Pro
             int totalDelay = 0;
             List<ScrollViewer> scrollers = await Dispatcher.InvokeAsync(() =>
             {
-                if (MainContent == null) return new List<ScrollViewer>();
-                return FindVisualChildren<ScrollViewer>(MainContent)
+                if (Content is not DependencyObject root)
+                    return new List<ScrollViewer>();
+                return FindVisualChildren<ScrollViewer>(root)
                     .Where(s => s.ScrollableHeight > 24)
                     .OrderByDescending(s => s.ScrollableHeight)
                     .ToList();
@@ -689,8 +690,12 @@ namespace GamingBooster_Pro
                 Margin = new Thickness(0, 0, 0, 18)
             };
             StackPanel statusPanel = new StackPanel();
-            statusPanel.Children.Add(new TextBlock { Text = T("SYSTEMSTATUS", "SYSTEM STATUS"), Foreground = Muted, FontSize = 11, FontWeight = FontWeights.Bold });
-            statusPanel.Children.Add(new TextBlock { Text = T("●  Alles in Ordnung", "●  Everything OK"), Foreground = AiGreen, FontSize = 13, Margin = new Thickness(0, 6, 0, 0) });
+            TextBlock statusHdr = new TextBlock { Text = T("SYSTEMSTATUS", "SYSTEM STATUS"), Foreground = Muted, FontSize = 12, FontWeight = FontWeights.Bold };
+            TextBlock statusOk = new TextBlock { Text = T("●  Alles in Ordnung", "●  Everything OK"), Foreground = AiGreen, FontSize = 13, Margin = new Thickness(0, 6, 0, 0) };
+            RedlineUi.ApplyCrispText(statusHdr);
+            RedlineUi.ApplyCrispText(statusOk);
+            statusPanel.Children.Add(statusHdr);
+            statusPanel.Children.Add(statusOk);
             statusBox.Child = statusPanel;
             bottom.Children.Add(statusBox);
 
@@ -963,6 +968,7 @@ namespace GamingBooster_Pro
                 ToolTip = PageInfo(page)
             };
             ApplyButtonSkin(b, 10);
+            RedlineUi.ApplyCrispText(b);
             b.Click += (s, e) => Navigate(page);
             _navButtons.Add(b);
             ApplyNavButtonStyle(new[] { b }, CurrentPage);
@@ -2278,6 +2284,11 @@ namespace GamingBooster_Pro
             };
             RedlineUi.ApplyCrispText(DashboardStorageSummaryText);
             storText.Children.Add(DashboardStorageSummaryText);
+            StorageOverviewSnapshot storSnap = TryGetStorageOverviewSnapshot();
+            storText.Children.Add(StorageLegendLineWithValue(
+                T("Gesamt", "Total"),
+                TextPrimary,
+                storSnap.Ready ? FormatBytes(storSnap.TotalBytes) : "—"));
             DashboardStorageUsedLegendText = StorageLegendLineWithValue(T("Belegt", "Used"), Red, GetStorageUsedLegendValue());
             storText.Children.Add(DashboardStorageUsedLegendText);
             DashboardStorageFreeLegendText = StorageLegendLineWithValue(T("Frei", "Free"), Muted, GetStorageFreeLegendValue());
@@ -2398,6 +2409,7 @@ namespace GamingBooster_Pro
         {
             public bool Ready;
             public string DriveLetter = "C:";
+            public string VolumeLabel = "";
             public long TotalBytes;
             public long FreeBytes;
             public long UsedBytes;
@@ -2407,17 +2419,52 @@ namespace GamingBooster_Pro
         private StorageOverviewSnapshot TryGetStorageOverviewSnapshot()
         {
             StorageOverviewSnapshot snap = new StorageOverviewSnapshot();
+            string systemRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+            string systemId = systemRoot.TrimEnd('\\').ToUpperInvariant();
+            if (string.IsNullOrEmpty(systemId))
+                systemId = "C:";
+
+            try
+            {
+                using ManagementObjectSearcher mos = new ManagementObjectSearcher(
+                    "SELECT DeviceID, Size, FreeSpace, VolumeName FROM Win32_LogicalDisk WHERE DriveType=3");
+                foreach (ManagementObject mo in mos.Get())
+                {
+                    string? device = mo["DeviceID"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(device) ||
+                        !string.Equals(device, systemId, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    long total = Convert.ToInt64(mo["Size"] ?? 0L);
+                    long free = Convert.ToInt64(mo["FreeSpace"] ?? 0L);
+                    if (total <= 0)
+                        break;
+
+                    snap.Ready = true;
+                    snap.DriveLetter = device;
+                    snap.VolumeLabel = (mo["VolumeName"]?.ToString() ?? "").Trim();
+                    snap.TotalBytes = total;
+                    snap.FreeBytes = Math.Clamp(free, 0, total);
+                    snap.UsedBytes = Math.Max(0, total - snap.FreeBytes);
+                    snap.UsedPercent = (int)Math.Round((snap.UsedBytes * 100d) / total);
+                    return snap;
+                }
+            }
+            catch { }
+
             try
             {
                 DriveInfo? d = GetSystemDriveInfo();
                 if (d == null || !d.IsReady || d.TotalSize <= 0)
                     return snap;
 
+                long free = d.TotalFreeSpace > 0 ? d.TotalFreeSpace : d.AvailableFreeSpace;
                 snap.Ready = true;
                 snap.DriveLetter = d.Name.TrimEnd('\\');
+                snap.VolumeLabel = (d.VolumeLabel ?? "").Trim();
                 snap.TotalBytes = d.TotalSize;
-                snap.FreeBytes = d.AvailableFreeSpace;
-                snap.UsedBytes = Math.Max(0, d.TotalSize - d.AvailableFreeSpace);
+                snap.FreeBytes = Math.Clamp(free, 0, d.TotalSize);
+                snap.UsedBytes = Math.Max(0, d.TotalSize - snap.FreeBytes);
                 snap.UsedPercent = (int)Math.Round((snap.UsedBytes * 100d) / d.TotalSize);
             }
             catch { }
@@ -2430,7 +2477,11 @@ namespace GamingBooster_Pro
             StorageOverviewSnapshot s = TryGetStorageOverviewSnapshot();
             if (!s.Ready)
                 return T("Systemlaufwerk nicht lesbar", "System drive not readable");
-            return s.DriveLetter + ": " + FormatBytes(s.FreeBytes) + T(" frei · ", " free · ") + FormatBytes(s.UsedBytes) + T(" belegt", " used");
+
+            string label = string.IsNullOrWhiteSpace(s.VolumeLabel) ? s.DriveLetter : s.VolumeLabel + " (" + s.DriveLetter + ")";
+            return label + T(" · Gesamt ", " · Total ") + FormatBytes(s.TotalBytes)
+                + T(" · Frei ", " · Free ") + FormatBytes(s.FreeBytes)
+                + T(" · Belegt ", " · Used ") + FormatBytes(s.UsedBytes);
         }
 
         private string GetStorageUsedLegendValue()
@@ -4145,8 +4196,7 @@ namespace GamingBooster_Pro
             grid.Children.Add(left);
 
             StackPanel right = new StackPanel();
-            OutputBox = OutputConsole(T("Update Center bereit. Klicke auf „Update automatisch installieren“.",
-                "Update Center ready. Click \"Install update automatically\"."));
+            OutputBox = OutputConsole(GetUpdatePageStartupLog());
             right.Children.Add(OutputBox);
 
             Progress = new ProgressBar
@@ -4443,10 +4493,15 @@ namespace GamingBooster_Pro
         {
             try
             {
+                if (bytes < 0)
+                    return "—";
                 double gb = bytes / 1024d / 1024d / 1024d;
                 if (gb >= 1024)
-                    return (gb / 1024d).ToString("0.##") + " TB";
-                return gb.ToString("0.#") + " GB";
+                    return (gb / 1024d).ToString("0.##", System.Globalization.CultureInfo.CurrentCulture) + " TB";
+                if (gb >= 1)
+                    return gb.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture) + " GB";
+                double mb = bytes / 1024d / 1024d;
+                return mb.ToString("0.#", System.Globalization.CultureInfo.CurrentCulture) + " MB";
             }
             catch
             {
@@ -4456,37 +4511,33 @@ namespace GamingBooster_Pro
 
         private string GetSystemDriveTotalText()
         {
-            DriveInfo? d = GetSystemDriveInfo();
-            return d == null ? "n/a" : FormatBytes(d.TotalSize);
+            StorageOverviewSnapshot s = TryGetStorageOverviewSnapshot();
+            return s.Ready ? FormatBytes(s.TotalBytes) : "n/a";
         }
 
         private string GetSystemDriveFreeText()
         {
-            DriveInfo? d = GetSystemDriveInfo();
-            return d == null ? "n/a" : FormatBytes(d.AvailableFreeSpace);
+            StorageOverviewSnapshot s = TryGetStorageOverviewSnapshot();
+            return s.Ready ? FormatBytes(s.FreeBytes) : "n/a";
         }
 
         private string GetSystemDriveUsedText()
         {
-            DriveInfo? d = GetSystemDriveInfo();
-            if (d == null) return "n/a";
-            long used = Math.Max(0, d.TotalSize - d.AvailableFreeSpace);
-            return FormatBytes(used);
+            StorageOverviewSnapshot s = TryGetStorageOverviewSnapshot();
+            return s.Ready ? FormatBytes(s.UsedBytes) : "n/a";
         }
 
         private int GetSystemDriveUsedPercent()
         {
-            DriveInfo? d = GetSystemDriveInfo();
-            if (d == null || d.TotalSize <= 0) return 0;
-            long used = Math.Max(0, d.TotalSize - d.AvailableFreeSpace);
-            return (int)Math.Round((used * 100d) / d.TotalSize);
+            StorageOverviewSnapshot s = TryGetStorageOverviewSnapshot();
+            return s.Ready ? s.UsedPercent : 0;
         }
 
         private int GetSystemDriveFreePercent()
         {
-            DriveInfo? d = GetSystemDriveInfo();
-            if (d == null || d.TotalSize <= 0) return 0;
-            return (int)Math.Round((d.AvailableFreeSpace * 100d) / d.TotalSize);
+            StorageOverviewSnapshot s = TryGetStorageOverviewSnapshot();
+            if (!s.Ready || s.TotalBytes <= 0) return 0;
+            return (int)Math.Round((s.FreeBytes * 100d) / s.TotalBytes);
         }
 
 
@@ -5787,7 +5838,8 @@ private Border ModernOutputCard(string startText)
             {
                 StorageOverviewSnapshot s = TryGetStorageOverviewSnapshot();
                 if (!s.Ready) return T("Systemlaufwerk: —", "System drive: —");
-                return T("Systemlaufwerk ", "System drive ") + s.DriveLetter + T(": Gesamt ", ": Total ") + FormatBytes(s.TotalBytes);
+                string vol = string.IsNullOrWhiteSpace(s.VolumeLabel) ? s.DriveLetter : s.VolumeLabel + " (" + s.DriveLetter + ")";
+                return T("Festplatte ", "Drive ") + vol + T(" – Kapazität ", " – Capacity ") + FormatBytes(s.TotalBytes);
             }
             catch { return ""; }
         }
@@ -9239,6 +9291,19 @@ private Border ModernOutputCard(string startText)
         }
 
 
+        private string GetUpdatePageStartupLog()
+        {
+            string history = RedlineUpdateLog.FormatForUi(IsEnglish());
+            return history + Environment.NewLine + Environment.NewLine
+                + T("Bereit. Klicke „Nur prüfen“ oder „Update automatisch installieren“.",
+                    "Ready. Click \"Check only\" or \"Install update automatically\".");
+        }
+
+        private static void RecordUpdateLog(string installed, string online, string notes, string result)
+        {
+            RedlineUpdateLog.Add(installed, online, notes, result);
+        }
+
         private async void UpdateCheck_Click(object sender, RoutedEventArgs e)
         {
             PrepareActionOutput();
@@ -9280,6 +9345,7 @@ private Border ModernOutputCard(string startText)
                 if (node == null)
                 {
                     await Log("Fehler: version.json konnte nicht gelesen werden.");
+                    RecordUpdateLog(CurrentAppVersion, "?", "", T("Fehler: JSON ungültig", "Error: invalid JSON"));
                     return;
                 }
 
@@ -9294,6 +9360,7 @@ private Border ModernOutputCard(string startText)
                 if (string.IsNullOrWhiteSpace(latestVersion) || string.IsNullOrWhiteSpace(downloadUrl))
                 {
                     await Log("Fehler: version.json braucht version und downloadUrl.");
+                    RecordUpdateLog(CurrentAppVersion, latestVersion, notes, T("Fehler: version.json unvollständig", "Error: incomplete version.json"));
                     return;
                 }
 
@@ -9301,7 +9368,11 @@ private Border ModernOutputCard(string startText)
 
                 if (compare < 0)
                 {
-                    await Log("✅ Redline ist aktuell (installiert: " + CurrentAppVersion + ", online: " + latestVersion + ").");
+                    string msg = "✅ " + T("Aktuell (installiert V", "Up to date (installed V") + CurrentAppVersion + ", online V" + latestVersion + ")";
+                    await Log(msg);
+                    RecordUpdateLog(CurrentAppVersion, latestVersion, notes, msg);
+                    await Log("");
+                    await Log(RedlineUpdateLog.FormatForUi(IsEnglish()));
                     if (Progress != null)
                         Progress.Value = 100;
                     return;
@@ -9309,17 +9380,27 @@ private Border ModernOutputCard(string startText)
 
                 if (compare == 0)
                 {
-                    await Log("✅ Redline ist auf dem neuesten Stand (V" + CurrentAppVersion + ").");
+                    string msg = "✅ " + T("Neueste Version V", "Latest version V") + CurrentAppVersion + T(" installiert", " installed");
+                    await Log(msg);
+                    RecordUpdateLog(CurrentAppVersion, latestVersion, notes, msg);
+                    await Log("");
+                    await Log(RedlineUpdateLog.FormatForUi(IsEnglish()));
                     if (Progress != null)
                         Progress.Value = 100;
                     return;
                 }
 
-                await Log(T("Neue Version verfügbar: ", "New version available: ") + latestVersion);
+                string avail = T("Update verfügbar: V", "Update available: V") + latestVersion;
+                await Log(avail);
                 await Log("Download: " + downloadUrl);
+                RecordUpdateLog(CurrentAppVersion, latestVersion, notes, avail);
 
                 if (!allowDownload)
+                {
+                    await Log("");
+                    await Log(RedlineUpdateLog.FormatForUi(IsEnglish()));
                     return;
+                }
 
                 if (autoInstall)
                     await Log(T("Automatische Installation gestartet...", "Automatic installation started..."));
@@ -9356,6 +9437,7 @@ private Border ModernOutputCard(string startText)
 
             await Log(T("Download fertig: ", "Download complete: ") + target);
             await Log(T("Größe: ", "Size: ") + FormatSize(data.Length));
+            RecordUpdateLog(CurrentAppVersion, version, "", T("Download V", "Download V") + version + " " + T("abgeschlossen", "complete"));
 
             if (isZip)
             {
