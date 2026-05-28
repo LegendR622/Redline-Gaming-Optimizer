@@ -143,7 +143,7 @@ namespace GamingBooster_Pro
             Assert("Smart Links mindestens 4", links.Count >= 4, links.Count.ToString());
             Assert("Smart Links NVIDIA", links.Any(l => l.Id == "nvidia"));
             Assert("Smart Links ASUS MB", links.Any(l => l.Id == "mb-asus"));
-            Assert("Smart Links Windows Update", links.Any(l => l.Id == "winupdate"));
+            Assert("Smart Links GPU vendor", links.Any(l => l.Id is "nvidia" or "amd-gpu" or "intel-gpu"));
         }
 
         private static void TestRecommendedCategories()

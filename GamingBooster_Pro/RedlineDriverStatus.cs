@@ -71,8 +71,6 @@ namespace GamingBooster_Pro
         public static List<DriverDisplayItem> BuildLeftPanelList(int max = 12)
         {
             Dictionary<string, int> errors = BuildDeviceErrorMap();
-            List<string> pendingWu = RedlineDriverUpdateService.Instance.PendingWindowsDriverTitles.ToList();
-
             List<DriverDisplayItem> fromWmi = LoadSignedDrivers();
             HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             List<DriverDisplayItem> rows = new List<DriverDisplayItem>();
@@ -84,7 +82,7 @@ namespace GamingBooster_Pro
                 string key = d.DeviceName.Trim();
                 if (!seen.Add(key))
                     continue;
-                EnrichStatus(d, errors, pendingWu);
+                EnrichStatus(d, errors);
                 rows.Add(d);
             }
 
@@ -105,7 +103,7 @@ namespace GamingBooster_Pro
                     PnpErrorCode = kv.Value,
                     FromProblemDevice = true
                 };
-                EnrichStatus(problem, errors, pendingWu);
+                EnrichStatus(problem, errors);
                 rows.Add(problem);
             }
 
@@ -116,26 +114,6 @@ namespace GamingBooster_Pro
                 .ToList();
         }
 
-        public static string? FindWindowsUpdateMatch(string deviceName, IReadOnlyList<string> pendingTitles)
-        {
-            if (pendingTitles.Count == 0)
-                return null;
-
-            string? best = null;
-            int bestScore = 0;
-            foreach (string title in pendingTitles)
-            {
-                int score = MatchScore(deviceName, title);
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = title;
-                }
-            }
-
-            return bestScore >= 2 ? best : null;
-        }
-
         public static string ResolveStatusAfterRefresh(DriverDisplayItem item, Dictionary<string, int> errors)
         {
             if (RecentlyUpdatedUntil.TryGetValue(item.DeviceName, out DateTime until) && until > DateTime.UtcNow)
@@ -144,18 +122,18 @@ namespace GamingBooster_Pro
                     return "AKTUALISIERT";
             }
 
-            return ComputeStatus(item, errors, null);
+            return ComputeStatus(item, errors);
         }
 
-        private static void EnrichStatus(DriverDisplayItem d, Dictionary<string, int> errors, List<string> pendingWu)
+        private static void EnrichStatus(DriverDisplayItem d, Dictionary<string, int> errors)
         {
             d.PnpErrorCode ??= FindErrorCode(d.DeviceName, errors);
-            d.WindowsUpdateTitle = FindWindowsUpdateMatch(d.DeviceName, pendingWu);
-            d.Status = ComputeStatus(d, errors, d.WindowsUpdateTitle);
+            d.WindowsUpdateTitle = null;
+            d.Status = ComputeStatus(d, errors);
             d.Detail = BuildDetail(d);
         }
 
-        private static string ComputeStatus(DriverDisplayItem d, Dictionary<string, int> errors, string? wuTitle)
+        private static string ComputeStatus(DriverDisplayItem d, Dictionary<string, int> errors)
         {
             if (RecentlyUpdatedUntil.TryGetValue(d.DeviceName, out DateTime until) && until > DateTime.UtcNow)
             {
@@ -168,9 +146,6 @@ namespace GamingBooster_Pro
 
             if (HasActiveError(d.DeviceName, errors))
                 return "UPDATE EMPFOHLEN";
-
-            if (!string.IsNullOrWhiteSpace(wuTitle))
-                return "WU VERFÜGBAR";
 
             if (d.Provider.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) && IsMicrosoftSystemDriver(d))
                 return "SYSTEM";
@@ -213,8 +188,6 @@ namespace GamingBooster_Pro
                 parts.Add(d.DriverDate.Value.ToShortDateString());
             if (d.PnpErrorCode is int code)
                 parts.Add(ErrorLabel(code));
-            if (!string.IsNullOrWhiteSpace(d.WindowsUpdateTitle))
-                parts.Add(T("WU: Paket gefunden", "WU: package found"));
             return string.Join(" · ", parts);
         }
 
@@ -223,7 +196,6 @@ namespace GamingBooster_Pro
             return d.Status switch
             {
                 "UPDATE EMPFOHLEN" => 100,
-                "WU VERFÜGBAR" => 95,
                 "AKTUALISIERT" => 90,
                 "PRÜFEN" => 50,
                 "AKTUELL" => 10,

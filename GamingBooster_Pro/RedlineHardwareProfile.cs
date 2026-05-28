@@ -97,9 +97,6 @@ namespace GamingBooster_Pro
             string cpuV = CpuVendor(hp.CpuName);
             string mb = (hp.MotherboardManufacturer + " " + hp.MotherboardProduct).ToLowerInvariant();
 
-            Add("winupdate", "Windows Update", "Windows Update", "ms-settings:windowsupdate",
-                "Basis-Updates und optionale Treiber", "Base updates and optional drivers");
-
             if (gpuV == "NVIDIA")
                 Add("nvidia", "NVIDIA Grafiktreiber", "NVIDIA graphics driver", "https://www.nvidia.com/Download/index.aspx",
                     "Erkannte NVIDIA GPU: " + hp.GpuName, "Detected NVIDIA GPU: " + hp.GpuName);

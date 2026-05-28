@@ -104,7 +104,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.21";
+        private const string CurrentAppVersion = "9.22";
 
         private bool _startupAutoUpdateStarted;
         private string? _pendingUpdateBannerVersion;
@@ -168,7 +168,6 @@ namespace GamingBooster_Pro
             "AKTUALISIERT" => T("AKTUALISIERT", "UPDATED"),
             "PRÜFEN" => T("PRÜFEN", "CHECK"),
             "UPDATE EMPFOHLEN" => T("UPDATE EMPFOHLEN", "UPDATE RECOMMENDED"),
-            "WU VERFÜGBAR" => T("WU VERFÜGBAR", "WU AVAILABLE"),
             "SYSTEM" => T("SYSTEM", "SYSTEM"),
             _ => status
         };
@@ -3956,14 +3955,7 @@ namespace GamingBooster_Pro
 
             _ = Task.Run(async () =>
             {
-                try
-                {
-                    await RedlineDriverUpdateService.Instance.SearchOnlyAsync(
-                        _ => Task.CompletedTask,
-                        IsEnglish());
-                }
-                catch { }
-
+                await Task.CompletedTask;
                 List<DriverDisplayItem> preview = RedlineDriverStatus.BuildLeftPanelList(12);
                 Dispatcher.Invoke(() =>
                 {
@@ -3996,7 +3988,7 @@ namespace GamingBooster_Pro
             {
                 DriverStatusToUi(d.Status, out string risk, out Brush riskColor);
                 string device = d.DeviceName;
-                bool canUpdate = d.Status is "UPDATE EMPFOHLEN" or "WU VERFÜGBAR" or "PRÜFEN";
+                bool canUpdate = d.Status is "UPDATE EMPFOHLEN" or "PRÜFEN";
                 RoutedEventHandler action = d.Status == "SYSTEM"
                     ? DriverScan_Click
                     : canUpdate
@@ -4006,8 +3998,7 @@ namespace GamingBooster_Pro
                 string btn = d.Status switch
                 {
                     "UPDATE EMPFOHLEN" => T("UPDATE", "UPDATE"),
-                    "WU VERFÜGBAR" => T("INSTALL", "INSTALL"),
-                    "PRÜFEN" => T("PRÜFEN", "CHECK"),
+                    "PRÜFEN" => T("HERSTELLER", "VENDOR"),
                     "AKTUALISIERT" => T("OK", "OK"),
                     "AKTUELL" => T("OK", "OK"),
                     _ => T("SCAN", "SCAN")
@@ -4074,9 +4065,8 @@ namespace GamingBooster_Pro
                     async msg => await Log(msg),
                     IsEnglish());
 
-                await Task.Delay(1500);
+                await Task.Delay(800);
                 InvalidateDriversCache();
-                await RedlineDriverUpdateService.Instance.SearchOnlyAsync(async msg => await Log(msg), IsEnglish());
 
                 Dictionary<string, int> errors = RedlineDriverStatus.BuildDeviceErrorMap();
                 if (installed && !errors.Keys.Any(k => RedlineDriverStatus.NamesLikelyMatch(k, deviceName)))
@@ -4111,7 +4101,6 @@ namespace GamingBooster_Pro
                     color = AiOrange;
                     break;
                 case "UPDATE EMPFOHLEN":
-                case "WU VERFÜGBAR":
                     risk = T("Hoch", "High");
                     color = Red;
                     break;
@@ -4128,149 +4117,177 @@ namespace GamingBooster_Pro
 
         private UIElement PageDrivers()
         {
+            HardwareProfile hp = RedlineHardwareProfile.Detect(GetCpuName(), GetGpuName(), GetWindowsCaption());
+            string gpuVendor = RedlineHardwareProfile.GpuVendor(hp.GpuName);
+            Brush gpuAccent = gpuVendor switch
+            {
+                "NVIDIA" => AiGreen,
+                "AMD" => AiOrange,
+                "Intel" => new SolidColorBrush(Color.FromRgb(0, 113, 197)),
+                _ => Red
+            };
+
             Grid root = new Grid();
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition());
 
-            UIElement header = BuildV78PageHeader(T("DRIVER", "DRIVER"),
-                T("Treiberstatus prüfen, offizielle Updates öffnen und Probleme erkennen.",
-                  "Check driver status, open official updates and detect issues."),
+            UIElement header = BuildV78PageHeader(T("TREIBER", "DRIVERS"),
+                T("Erkennt deine GPU/CPU und installiert nur passende Hersteller-Treiber per winget.",
+                  "Detects your GPU/CPU and installs only matching vendor drivers via winget."),
                 DriverScan_Click,
-                "🔍  " + T("TREIBER SCANNEN", "SCAN DRIVERS"));
+                "🔍  " + T("SCAN", "SCAN"));
             Grid.SetRow(header, 0);
             root.Children.Add(header);
 
             Grid grid = ModernTwoColumn();
-            grid.ColumnDefinitions[1].Width = new GridLength(400);
+            grid.ColumnDefinitions[1].Width = new GridLength(420);
             StackPanel left = new StackPanel();
 
             Border hero = DashboardCard();
             hero.Margin = new Thickness(0, 0, 18, 18);
             hero.Padding = new Thickness(22);
+            hero.BorderBrush = gpuAccent;
+            hero.BorderThickness = new Thickness(1);
             Grid hg = new Grid();
-            hg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+            hg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
             hg.ColumnDefinitions.Add(new ColumnDefinition());
-            Grid orb = new Grid { Width = 140, Height = 140, HorizontalAlignment = HorizontalAlignment.Center };
-            orb.Children.Add(new System.Windows.Shapes.Ellipse { Width = 130, Height = 130, Stroke = Red, StrokeThickness = 2 });
-            orb.Children.Add(new TextBlock { Text = "DRV", Foreground = Red, FontSize = 28, FontWeight = FontWeights.UltraBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            Grid orb = new Grid { Width = 130, Height = 130, HorizontalAlignment = HorizontalAlignment.Center };
+            orb.Children.Add(new System.Windows.Shapes.Ellipse { Width = 120, Height = 120, Stroke = gpuAccent, StrokeThickness = 2 });
+            orb.Children.Add(new TextBlock
+            {
+                Text = string.IsNullOrEmpty(gpuVendor) ? "GPU" : gpuVendor[..Math.Min(3, gpuVendor.Length)],
+                Foreground = gpuAccent,
+                FontSize = 22,
+                FontWeight = FontWeights.UltraBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            });
             hg.Children.Add(orb);
-            StackPanel ht = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-            ht.Children.Add(new TextBlock { Text = T("Hardware & Treiber", "Hardware & drivers"), Foreground = Brushes.White, FontSize = 20, FontWeight = FontWeights.UltraBold });
-            ht.Children.Add(new TextBlock { Text = "GPU: " + TruncateGpuName(GetGpuName()), Foreground = Muted, FontSize = 12, Margin = new Thickness(0, 6, 0, 0) });
-            ht.Children.Add(new TextBlock { Text = "CPU: " + TruncateGpuName(GetCpuName()), Foreground = Muted, FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
-            ht.Children.Add(new TextBlock { Text = T("Mainboard: ", "Motherboard: ") + GetMotherboardLabel(), Foreground = Muted, FontSize = 12, Margin = new Thickness(0, 2, 0, 12) });
-            Button devMgr = OutlineButton(T("Geräte-Manager", "Device Manager"), (s, e) => SafeStartSystem("devmgmt.msc"));
-            devMgr.Width = 220;
-            devMgr.Height = 40;
-            ht.Children.Add(devMgr);
+            StackPanel ht = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+            ht.Children.Add(new TextBlock
+            {
+                Text = T("Dein System", "Your system"),
+                Foreground = Brushes.White,
+                FontSize = 20,
+                FontWeight = FontWeights.UltraBold
+            });
+            ht.Children.Add(DriverInfoChip("GPU", TruncateGpuName(GetGpuName()), gpuAccent));
+            ht.Children.Add(DriverInfoChip("CPU", TruncateGpuName(GetCpuName()), Muted));
+            ht.Children.Add(DriverInfoChip(T("Board", "MB"), GetMotherboardLabel(), Muted));
+            WrapPanel chipRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            if (!string.IsNullOrEmpty(gpuVendor))
+                chipRow.Children.Add(DriverVendorChip(gpuVendor, gpuAccent));
+            string cpuV = RedlineHardwareProfile.CpuVendor(hp.CpuName);
+            if (!string.IsNullOrEmpty(cpuV) && cpuV != gpuVendor)
+                chipRow.Children.Add(DriverVendorChip(cpuV, cpuV == "AMD" ? AiOrange : CardBg2));
+            chipRow.Children.Add(DriverVendorChip("winget", Red));
+            ht.Children.Add(chipRow);
             Grid.SetColumn(ht, 1);
             hg.Children.Add(ht);
             hero.Child = hg;
             left.Children.Add(hero);
 
             Border table = DashboardCard();
-            table.Margin = new Thickness(0, 0, 18, 18);
+            table.Margin = new Thickness(0, 0, 18, 16);
             table.Padding = new Thickness(16);
             StackPanel tp = new StackPanel();
-            tp.Children.Add(new TextBlock { Text = T("WICHTIGE TREIBER", "KEY DRIVERS"), Foreground = Brushes.White, FontSize = 16, FontWeight = FontWeights.UltraBold, Margin = new Thickness(0, 0, 0, 10) });
-
+            tp.Children.Add(new TextBlock
+            {
+                Text = T("TREIBER-STATUS", "DRIVER STATUS"),
+                Foreground = Brushes.White,
+                FontSize = 16,
+                FontWeight = FontWeights.UltraBold,
+                Margin = new Thickness(0, 0, 0, 10)
+            });
             _driverPreviewHost = new StackPanel();
             _driverPreviewHost.Children.Add(new TextBlock
             {
-                Text = T("Treiber werden geladen…", "Loading drivers…"),
+                Text = T("Wird geladen…", "Loading…"),
                 Foreground = Muted,
                 FontSize = 13
             });
             tp.Children.Add(_driverPreviewHost);
-
             table.Child = tp;
             left.Children.Add(table);
+
+            Border actionCard = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(22, 28, 38)),
+                BorderBrush = Red,
+                BorderThickness = new Thickness(4, 0, 0, 0),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(18),
+                Margin = new Thickness(0, 0, 18, 16)
+            };
+            StackPanel actionP = new StackPanel();
+            actionP.Children.Add(new TextBlock
+            {
+                Text = T("TREIBER INSTALLIEREN", "INSTALL DRIVERS"),
+                Foreground = Brushes.White,
+                FontSize = 17,
+                FontWeight = FontWeights.UltraBold,
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            actionP.Children.Add(new TextBlock
+            {
+                Text = RedlineFeatureGate.InAppDriverUpdateEnabled
+                    ? T("Nur winget · passend zu deiner GPU/CPU. Kein Windows Update.",
+                        "winget only · matched to your GPU/CPU. No Windows Update.")
+                    : T("Coming Soon in der Free-Version.", "Coming soon in the free version."),
+                Foreground = Muted,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 14)
+            });
+            if (RedlineFeatureGate.InAppDriverUpdateEnabled && IsProActive())
+            {
+                Button installMain = RedButton("⬇  " + T("PASSENDE TREIBER INSTALLIEREN", "INSTALL MATCHING DRIVERS"), DriversInAppAutoUpdate_Click);
+                installMain.Height = 48;
+                installMain.Margin = new Thickness(0, 0, 0, 10);
+                actionP.Children.Add(installMain);
+                StackPanel subBtns = new StackPanel { Orientation = Orientation.Horizontal };
+                Button previewBtn = OutlineButton(T("VORSCHAU", "PREVIEW"), DriversPreviewPackages_Click);
+                previewBtn.Height = 40;
+                previewBtn.Width = 140;
+                subBtns.Children.Add(previewBtn);
+                Button cancelBtn = OutlineButton(T("STOP", "STOP"), DriversCancelUpdate_Click);
+                cancelBtn.Height = 40;
+                cancelBtn.Width = 100;
+                cancelBtn.Margin = new Thickness(8, 0, 0, 0);
+                cancelBtn.Foreground = AiOrange;
+                subBtns.Children.Add(cancelBtn);
+                Button devBtn = OutlineButton(T("Geräte-Manager", "Device Manager"), (s, e) => SafeStartSystem("devmgmt.msc"));
+                devBtn.Height = 40;
+                devBtn.Width = 160;
+                devBtn.Margin = new Thickness(8, 0, 0, 0);
+                subBtns.Children.Add(devBtn);
+                actionP.Children.Add(subBtns);
+            }
+            else
+            {
+                Button soon = OutlineButton(T("COMING SOON", "COMING SOON"), (s, e) => TryInAppDriverFeature());
+                soon.Height = 44;
+                soon.Opacity = 0.8;
+                actionP.Children.Add(soon);
+            }
+            actionCard.Child = actionP;
+            left.Children.Add(actionCard);
 
             Border vendors = DashboardCard();
             vendors.Margin = new Thickness(0, 0, 18, 0);
             vendors.Padding = new Thickness(16);
             StackPanel vp = new StackPanel();
-            Border inAppCard = DashboardCard();
-            inAppCard.Margin = new Thickness(0, 0, 0, 14);
-            inAppCard.Padding = new Thickness(16);
-            StackPanel inAppP = new StackPanel();
-            inAppP.Children.Add(new TextBlock
+            vp.Children.Add(new TextBlock
             {
-                Text = T("IN-APP TREIBER-UPDATE", "IN-APP DRIVER UPDATE"),
+                Text = T("HERSTELLER-LINKS (MANUELL)", "VENDOR LINKS (MANUAL)"),
                 Foreground = Brushes.White,
-                FontSize = 15,
+                FontSize = 14,
                 FontWeight = FontWeights.UltraBold,
-                Margin = new Thickness(0, 0, 0, 6)
-            });
-            inAppP.Children.Add(new TextBlock
-            {
-                Text = RedlineFeatureGate.InAppDriverUpdateEnabled
-                    ? T("AUTO UPDATE: erkennt deine GPU/CPU und installiert nur passende Treiber (Windows + winget). Liste: ⬇ = Einzel-Update.",
-                        "AUTO UPDATE: detects your GPU/CPU and installs only matching drivers (Windows + winget). List: ⬇ = single update.")
-                    : T("Bald verfügbar · Coming Soon – wird für alle Nutzer in der Free-Version freigeschaltet.",
-                        "Coming soon – will be unlocked for all users in the free version."),
-                Foreground = Muted,
-                FontSize = 12,
-                TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 12)
             });
-            StackPanel inAppBtns = new StackPanel { Orientation = Orientation.Horizontal };
-            if (RedlineFeatureGate.InAppDriverUpdateEnabled && IsProActive())
-            {
-                Button autoInApp = RedButton("🔄  " + T("AUTO: SUCHE + INSTALL", "AUTO: SEARCH + INSTALL"), DriversInAppAutoUpdate_Click);
-                autoInApp.Width = 200;
-                autoInApp.Height = 44;
-                inAppBtns.Children.Add(autoInApp);
-                Button installBtn = OutlineButton("⬇  " + T("INSTALLIEREN", "INSTALL"), DriversInstallUpdates_Click);
-                installBtn.Width = 180;
-                installBtn.Height = 44;
-                installBtn.Margin = new Thickness(10, 0, 0, 0);
-                inAppBtns.Children.Add(installBtn);
-                Button cancelBtn = OutlineButton(T("ABBRECHEN", "CANCEL"), DriversCancelUpdate_Click);
-                cancelBtn.Width = 130;
-                cancelBtn.Height = 44;
-                cancelBtn.Margin = new Thickness(10, 0, 0, 0);
-                cancelBtn.Foreground = AiOrange;
-                inAppBtns.Children.Add(cancelBtn);
-            }
-            else
-            {
-                Button soon = OutlineButton(T("BALD VERFÜGBAR · COMING SOON", "COMING SOON"), (s, e) => TryInAppDriverFeature());
-                soon.Width = 320;
-                soon.Height = 44;
-                soon.IsEnabled = true;
-                soon.Opacity = 0.75;
-                inAppBtns.Children.Add(soon);
-            }
-            inAppP.Children.Add(inAppBtns);
-            inAppCard.Child = inAppP;
-            vp.Children.Add(inAppCard);
-
-            vp.Children.Add(new TextBlock { Text = T("OFFIZIELLE UPDATE-QUELLEN", "OFFICIAL UPDATE SOURCES"), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.UltraBold, Margin = new Thickness(0, 0, 0, 12) });
             WrapPanel tiles = new WrapPanel();
-            tiles.Children.Add(ModernTile("Windows Update", T("Windows Update öffnen", "Open Windows Update"), "WU", Red, (s, e) => OpenUri("ms-settings:windowsupdate")));
-            tiles.Children.Add(ModernTile("NVIDIA", T("NVIDIA Treiber-Download", "NVIDIA driver download"), "NV", AiGreen, (s, e) => OpenUri("https://www.nvidia.com/Download/index.aspx")));
-            tiles.Children.Add(ModernTile("AMD", T("AMD Treiber-Download", "AMD driver download"), "AMD", AiOrange, (s, e) => OpenUri("https://www.amd.com/en/support/download/drivers.html")));
-            tiles.Children.Add(ModernTile("Intel", T("Intel Support", "Intel support"), "IN", CardBg2, (s, e) => OpenUri("https://www.intel.com/content/www/us/en/support/detect.html")));
-            tiles.Children.Add(ModernTile("Realtek", T("Realtek Audio/LAN", "Realtek audio/LAN"), "RT", CardBg2, (s, e) => OpenUri("https://www.realtek.com/Download/List?cate_id=584")));
-            tiles.Children.Add(ModernTile(T("Report", "Report"), T("Treiber-Report speichern", "Save driver report"), "TXT", AiPurple, DriverReport_Click));
-
-            if (RedlineFeatureGate.InAppDriverUpdateEnabled && IsProActive())
-            {
-                tiles.Children.Add(ModernTile(T("AUTO UPDATE", "AUTO UPDATE"),
-                    T("Suche + automatische Installation", "Search + automatic install"),
-                    "AUTO", Red, DriversInAppAutoUpdate_Click));
-                tiles.Children.Add(ModernTile(T("INSTALLIEREN", "INSTALL"),
-                    T("Nur installieren (nach Suche)", "Install only (after search)"),
-                    "⬇", AiGreen, DriversInstallUpdates_Click));
-            }
-            else
-            {
-                tiles.Children.Add(ModernTileComingSoon(T("AUTO UPDATE", "AUTO UPDATE"),
-                    T("In-App Treiber-Update", "In-app driver update"), "AUTO", Red));
-                tiles.Children.Add(ModernTileComingSoon(T("INSTALLIEREN", "INSTALL"),
-                    T("Treiber direkt installieren", "Install drivers in-app"), "⬇", AiGreen));
-            }
+            AddDriverVendorTiles(tiles, hp);
+            tiles.Children.Add(ModernTile(T("Report", "Report"), T("Report speichern", "Save report"), "TXT", AiPurple, DriverReport_Click));
             vp.Children.Add(tiles);
             vendors.Child = vp;
             left.Children.Add(vendors);
@@ -4280,18 +4297,18 @@ namespace GamingBooster_Pro
 
             StackPanel right = new StackPanel();
             Border driverLog = CreateLiveLogCard(
-                T("LIVE LOG · TREIBER", "LIVE LOG · DRIVERS"),
-                T("Bereit. GPU wird erkannt — es werden nur passende Treiber installiert.",
-                  "Ready. GPU is detected — only matching drivers will be installed."),
-                460);
-            driverLog.Margin = new Thickness(0, 0, 0, 18);
+                T("LIVE LOG", "LIVE LOG"),
+                T("Bereit — winget installiert nur Treiber für deine erkannte GPU/CPU.",
+                  "Ready — winget installs drivers for your detected GPU/CPU only."),
+                500);
+            driverLog.Margin = new Thickness(0, 0, 0, 16);
             right.Children.Add(driverLog);
             right.Children.Add(AiSidePanel(
                 "REDLINE AI DRIVER",
-                AiCheckRow("GPU", TruncateGpuName(GetGpuName()), "GPU", Red, true),
-                AiCheckRow(T("Windows", "Windows"), GetWindowsCaption(), "OS", CardBg2, true),
-                AiCheckRow(T("Legende", "Legend"), T("AKTUELL / PRÜFEN / UPDATE", "CURRENT / CHECK / UPDATE"), "ℹ", Muted, true),
-                OutlineButton(T("Vollständigen Scan", "Full scan"), DriverScan_Click)
+                AiCheckRow("GPU", TruncateGpuName(GetGpuName()), string.IsNullOrEmpty(gpuVendor) ? "G" : gpuVendor[0].ToString(), gpuAccent, true),
+                AiCheckRow("CPU", TruncateGpuName(GetCpuName()), "C", Muted, true),
+                AiCheckRow("winget", T("Aktiv", "Active"), "W", AiGreen, true),
+                OutlineButton(T("Treiber scannen", "Scan drivers"), DriverScan_Click)
             ));
             Grid.SetColumn(right, 1);
             grid.Children.Add(right);
@@ -4299,6 +4316,65 @@ namespace GamingBooster_Pro
             Grid.SetRow(grid, 1);
             root.Children.Add(grid);
             return root;
+        }
+
+        private static UIElement DriverInfoChip(string label, string value, Brush accent)
+        {
+            StackPanel row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            row.Children.Add(new TextBlock
+            {
+                Text = label + ": ",
+                Foreground = accent,
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                Width = 42
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text = value,
+                Foreground = Brushes.White,
+                FontSize = 12,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 320
+            });
+            return row;
+        }
+
+        private static Border DriverVendorChip(string text, Brush color)
+        {
+            return new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)),
+                BorderBrush = color,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 4, 8, 4),
+                Margin = new Thickness(0, 0, 8, 0),
+                Child = new TextBlock { Text = text, Foreground = color, FontSize = 11, FontWeight = FontWeights.Bold }
+            };
+        }
+
+        private void AddDriverVendorTiles(WrapPanel tiles, HardwareProfile hp)
+        {
+            string gpu = RedlineHardwareProfile.GpuVendor(hp.GpuName);
+            string cpu = RedlineHardwareProfile.CpuVendor(hp.CpuName);
+            if (gpu == "NVIDIA")
+                tiles.Children.Add(ModernTile("NVIDIA", T("NVIDIA Download", "NVIDIA download"), "NV", AiGreen,
+                    (s, e) => OpenUri("https://www.nvidia.com/Download/index.aspx")));
+            if (gpu == "AMD")
+                tiles.Children.Add(ModernTile("AMD GPU", T("AMD Grafik", "AMD graphics"), "GPU", AiOrange,
+                    (s, e) => OpenUri("https://www.amd.com/en/support/download/drivers.html")));
+            if (gpu == "Intel")
+                tiles.Children.Add(ModernTile("Intel GPU", T("Intel Grafik", "Intel graphics"), "IG", CardBg2,
+                    (s, e) => OpenUri("https://www.intel.com/content/www/us/en/support/detect.html")));
+            if (cpu == "AMD")
+                tiles.Children.Add(ModernTile("AMD Chipset", T("AMD Chipsatz", "AMD chipset"), "AMD", AiOrange,
+                    (s, e) => OpenUri("https://www.amd.com/en/support/chipsets/amd-socket-am5/am5")));
+            if (cpu == "Intel" && gpu != "Intel")
+                tiles.Children.Add(ModernTile("Intel", T("Intel Support", "Intel support"), "IN", CardBg2,
+                    (s, e) => OpenUri("https://www.intel.com/content/www/us/en/support/detect.html")));
+            tiles.Children.Add(ModernTile("Realtek", T("Audio / LAN", "Audio / LAN"), "RT", CardBg2,
+                (s, e) => OpenUri("https://www.realtek.com/Download/List?cate_id=584")));
         }
 
         private UIElement PageBios()
@@ -5337,14 +5413,14 @@ namespace GamingBooster_Pro
         {
             if (!TryInAppDriverFeature()) return;
             PrepareActionOutput();
-            await RunInAppDriverUpdateAsync(searchAndInstall: true);
+            await RunInAppDriverUpdateAsync(installPackages: true);
         }
 
-        private async void DriversInstallUpdates_Click(object sender, RoutedEventArgs e)
+        private async void DriversPreviewPackages_Click(object sender, RoutedEventArgs e)
         {
             if (!TryInAppDriverFeature()) return;
             PrepareActionOutput();
-            await RunInAppDriverUpdateAsync(searchAndInstall: false, installOnly: true);
+            await RunInAppDriverUpdateAsync(installPackages: false);
         }
 
         private void DriversCancelUpdate_Click(object sender, RoutedEventArgs e)
@@ -5353,34 +5429,23 @@ namespace GamingBooster_Pro
             _ = Log(T("Treiber-Update wird abgebrochen…", "Cancelling driver update…"));
         }
 
-        private async Task RunInAppDriverUpdateAsync(bool searchAndInstall, bool installOnly = false)
+        private async Task RunInAppDriverUpdateAsync(bool installPackages)
         {
             await SafeRun(T("In-App Treiber-Update", "In-app driver update"), async () =>
             {
-                await Log("===== " + T("IN-APP TREIBER-UPDATE", "IN-APP DRIVER UPDATE") + " =====");
-                if (!IsAdmin())
-                    await Log(T("⚠ Nicht als Admin – Windows-Installation kann fehlschlagen. Rechtsklick → Als Administrator ausführen.",
-                        "⚠ Not running as admin – Windows install may fail. Right-click → Run as administrator."));
-                else
-                    await Log(T("✅ Admin-Rechte OK – echte Installation über Windows Update möglich.",
-                        "✅ Admin rights OK – real install via Windows Update possible."));
-
-                if (!installOnly)
-                {
-                    await Log(T("Hardware-Scan…", "Hardware scan…"));
-                    await RunDriverScanCoreAsync();
-                }
+                await Log("===== " + T("REDLINE TREIBER (winget)", "REDLINE DRIVERS (winget)") + " =====");
+                await Log(T("Hardware-Scan…", "Hardware scan…"));
+                await RunDriverScanCoreAsync();
 
                 HardwareProfile hp = RedlineHardwareProfile.Detect(GetCpuName(), GetGpuName(), GetWindowsCaption());
                 bool en = IsEnglish();
                 try
                 {
                     await RedlineDriverUpdateService.Instance.RunAsync(
-                        installAfterSearch: searchAndInstall,
-                        installOnly: installOnly,
-                        hardware: hp,
-                        log: async msg => await Log(msg),
-                        isEnglish: en);
+                        hp,
+                        installPackages,
+                        async msg => await Log(msg),
+                        en);
                 }
                 finally
                 {
@@ -5441,7 +5506,7 @@ namespace GamingBooster_Pro
 
                 await Log("");
                 await Log(T("Fertig. Installiere Treiber in den geöffneten Fenstern (Hersteller-Assistent).", "Done. Install drivers in the opened windows (vendor assistant)."));
-                await Log(T("Tipp: Windows Update → Optionale Updates für weitere Treiber.", "Tip: Windows Update → Optional updates for more drivers."));
+                await Log(T("Tipp: Hersteller-Links unten für manuelle Treiber.", "Tip: use vendor links below for manual drivers."));
             });
         }
 
@@ -9497,7 +9562,7 @@ private Border ModernOutputCard(string startText) =>
             OpenUri("https://www.realtek.com/Download/List?cate_id=584");
 
             await Log("NVIDIA, AMD, Intel und Realtek Seiten geöffnet.");
-            await Log("Wichtig: Keine Fake-Driver-Updater benutzen. Nur Hersteller oder Windows Update.");
+            await Log(T("Wichtig: Keine Fake-Driver-Updater. Nur winget oder Hersteller-Seiten.", "Important: no fake driver updaters. Use winget or vendor sites only."));
         }
 
         private async void DriverReport_Click(object sender, RoutedEventArgs e)
@@ -9638,7 +9703,7 @@ private Border ModernOutputCard(string startText) =>
                 }
                 else if (pruefen > 0)
                 {
-                    await Log(T("ℹ Einige Treiber prüfenswert – Windows Update + AUTO UPDATE.", "ℹ Some drivers worth checking – Windows Update + AUTO UPDATE."));
+                    await Log(T("ℹ Einige Treiber prüfenswert – Hersteller-Link oder winget Install.", "ℹ Some drivers worth checking – vendor link or winget install."));
                 }
                 else
                 {
@@ -9650,7 +9715,7 @@ private Border ModernOutputCard(string startText) =>
                 await Log("1. " + T("GPU-Treiber (NVIDIA/AMD/Intel)", "GPU driver (NVIDIA/AMD/Intel)"));
                 await Log("2. " + T("Mainboard/Chipsatz-Treiber", "Motherboard/chipset drivers"));
                 await Log("3. " + T("Netzwerk/Audio (Realtek etc.)", "Network/audio (Realtek etc.)"));
-                await Log("4. " + T("Windows Update → Optionale Updates", "Windows Update → Optional updates"));
+                await Log("4. " + T("In-App: passende winget-Pakete oder Hersteller-Link", "In-app: matching winget packages or vendor link"));
                 await Log("5. " + T("Keine Fake-Driver-Updater", "No fake driver updater tools"));
 
                 if (CurrentPage == "Drivers")
@@ -9825,7 +9890,7 @@ private Border ModernOutputCard(string startText) =>
             }
 
             lines.Add("");
-            lines.Add("Windows Update optionale Treiber prüfen: ms-settings:windowsupdate-optionalupdates");
+            lines.Add(T("In-App winget: nur passende GPU/CPU-Pakete", "In-app winget: matching GPU/CPU packages only"));
             lines.Add("NVIDIA: https://www.nvidia.com/Download/index.aspx");
             lines.Add("AMD: https://www.amd.com/en/support/download/drivers.html");
             lines.Add("Intel: https://www.intel.com/content/www/us/en/support/detect.html");
