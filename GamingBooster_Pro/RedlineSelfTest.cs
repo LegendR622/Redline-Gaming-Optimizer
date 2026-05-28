@@ -209,7 +209,7 @@ namespace GamingBooster_Pro
 
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
             string ver = doc.RootElement.GetProperty("version").GetString() ?? "";
-            Assert("version.json Version 9.15", ver == "9.15", "v" + ver);
+            Assert("version.json Version 9.16", ver == "9.16", "v" + ver);
             Assert("version.json downloadUrl", doc.RootElement.TryGetProperty("downloadUrl", out _));
         }
 

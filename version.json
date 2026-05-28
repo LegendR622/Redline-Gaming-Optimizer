@@ -1,6 +1,6 @@
 ﻿{
   "packageType": "zip",
-  "version": "9.15",
-  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.15/Redline_V9.15_win-x64.zip",
-  "notes": "V9.15: Update-Log kurz (aktuell), Treiber AUTO Suche+Install, Einzel-Update pro Gerät (⬇)."
+  "version": "9.16",
+  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.16/Redline_V9.16_win-x64.zip",
+  "notes": "V9.16: Dashboard-Update-Hinweis nur einmal nach Installation (kein dauerhafter V9.1-Text)."
 }

@@ -231,6 +231,37 @@ namespace GamingBooster_Pro
             }
         }
 
+        private static string UpdateBannerPath => Path.Combine(AppFolder, "update-just-installed.txt");
+
+        /// <summary>Nach erfolgreichem Update – Banner einmal auf dem Dashboard.</summary>
+        public static void MarkPendingUpdateBanner(string version)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(version))
+                    return;
+                File.WriteAllText(UpdateBannerPath, version.Trim());
+            }
+            catch { }
+        }
+
+        /// <summary>Liest und löscht die einmalige Update-Banner-Version.</summary>
+        public static string? ConsumePendingUpdateBanner()
+        {
+            try
+            {
+                if (!File.Exists(UpdateBannerPath))
+                    return null;
+                string v = File.ReadAllText(UpdateBannerPath).Trim();
+                File.Delete(UpdateBannerPath);
+                return string.IsNullOrWhiteSpace(v) ? null : v;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private static string SettingsPath => Path.Combine(AppFolder, "settings.json");
 
         public void Load()

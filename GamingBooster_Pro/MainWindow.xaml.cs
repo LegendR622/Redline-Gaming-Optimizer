@@ -103,9 +103,10 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.15";
+        private const string CurrentAppVersion = "9.16";
 
         private bool _startupAutoUpdateStarted;
+        private string? _pendingUpdateBannerVersion;
 
         private static readonly string[] CleanerRecommendedCategories =
         {
@@ -911,7 +912,7 @@ namespace GamingBooster_Pro
             TextBlock right = new TextBlock
             {
                 Text = "Made by Tobias Immisch  •  Redline V" + CurrentAppVersion + "  •  Auto-Update OK",
-                Foreground = CurrentAppVersion.StartsWith("9.1") ? AiGreen : Muted,
+                Foreground = Muted,
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -2568,12 +2569,15 @@ namespace GamingBooster_Pro
             hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             StackPanel hdrLeft = new StackPanel();
             hdrLeft.Children.Add(new TextBlock { Text = "DASHBOARD", Foreground = TextPrimary, FontSize = 34, FontWeight = FontWeights.UltraBold });
-            if (CurrentAppVersion.StartsWith("9.1", StringComparison.Ordinal))
+            string? updateBanner = _pendingUpdateBannerVersion ?? RedlineAppData.ConsumePendingUpdateBanner();
+            _pendingUpdateBannerVersion = null;
+            if (!string.IsNullOrWhiteSpace(updateBanner)
+                && string.Equals(updateBanner, CurrentAppVersion, StringComparison.OrdinalIgnoreCase))
             {
                 hdrLeft.Children.Add(new TextBlock
                 {
-                    Text = T("V9.1 – Update erfolgreich! Grüner Footer = neue Version aktiv.",
-                             "V9.1 – Update successful! Green footer = new version active."),
+                    Text = T("Neues Update installiert (V" + CurrentAppVersion + ").",
+                             "New update installed (V" + CurrentAppVersion + ")."),
                     Foreground = AiGreen,
                     FontSize = 14,
                     FontWeight = FontWeights.Bold,
@@ -10418,6 +10422,7 @@ private Border ModernOutputCard(string startText)
             await Log(T("Download fertig: ", "Download complete: ") + target);
             await Log(T("Größe: ", "Size: ") + FormatSize(data.Length));
             RecordUpdateLog(CurrentAppVersion, version, "", T("Download V", "Download V") + version + " " + T("abgeschlossen", "complete"));
+            RedlineAppData.MarkPendingUpdateBanner(version);
 
             if (isZip)
             {
@@ -10440,6 +10445,7 @@ private Border ModernOutputCard(string startText)
             }
 
             await Log(T("Starte Installer...", "Starting installer..."));
+            RedlineAppData.MarkPendingUpdateBanner(version);
             SafeStartSystem(target, "", true);
             await Log(T("Redline wird beendet – Installer übernimmt.", "Redline is closing – installer takes over."));
             await Task.Delay(800);
