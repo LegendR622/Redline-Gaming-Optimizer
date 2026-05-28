@@ -103,7 +103,12 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.4";
+        private const string CurrentAppVersion = "9.5";
+
+        private static readonly string[] CleanerRecommendedCategories =
+        {
+            "Browser Cache", "Temporäre Dateien", "Shader Cache"
+        };
         // jsDelivr statt raw.githubusercontent.com (kein veralteter CDN-Cache auf dem Client)
         private const string UpdateJsonUrl = "https://cdn.jsdelivr.net/gh/LegendR622/Redline-Gaming-Optimizer@main/version.json";
 
@@ -216,7 +221,128 @@ namespace GamingBooster_Pro
 
                 if (IsDemoTourMode())
                     _ = RunDemoTourAsync();
+                else if (IsUiSelfTestMode())
+                    _ = RunUiSelfTestAsync();
             };
+        }
+
+        private static bool IsUiSelfTestMode() =>
+            string.Equals(Environment.GetEnvironmentVariable("REDLINE_UI_SELFTEST"), "1", StringComparison.Ordinal);
+
+        private async Task RunUiSelfTestAsync()
+        {
+            Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            List<string> failures = new List<string>();
+            List<string> log = new List<string> { "===== REDLINE UI SELFTEST =====", DateTime.Now.ToString("O") };
+
+            string[] pages =
+            {
+                "Dashboard", "Readiness", "GameProfiles", "Optimierung", "Leistung", "Cleaner", "Startup",
+                "Security", "AntiCheat", "Network", "Drivers", "Bios", "Repair", "UndoCenter",
+                "Tools", "Update", "RemoteSupport", "Help", "Settings"
+            };
+
+            for (int round = 1; round <= 2; round++)
+            {
+                log.Add($"--- Runde {round} ---");
+                foreach (string page in pages)
+                {
+                    try
+                    {
+                        await Dispatcher.InvokeAsync(() => Navigate(page));
+                        await Task.Delay(350);
+                        log.Add("[OK] Seite " + page);
+                    }
+                    catch (Exception ex)
+                    {
+                        failures.Add(page + ": " + ex.Message);
+                        log.Add("[FAIL] Seite " + page + " | " + ex.Message);
+                    }
+                }
+            }
+
+            try
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    Navigate("Cleaner");
+                    ApplyRecommendedCleanerCategories(true);
+                });
+                await Task.Delay(400);
+
+                int recommendedTargets = 0;
+                await Dispatcher.InvokeAsync(() => recommendedTargets = GetSelectedCleanerTargets().Count);
+                if (recommendedTargets < 3)
+                {
+                    failures.Add("Cleaner empfohlen: zu wenige Ziele (" + recommendedTargets + ")");
+                    log.Add("[FAIL] Cleaner empfohlen Ziele=" + recommendedTargets);
+                }
+                else
+                    log.Add("[OK] Cleaner empfohlen Ziele=" + recommendedTargets);
+
+                await Dispatcher.InvokeAsync(() => ApplyRecommendedCleanerCategories(false));
+                int allTargets = 0;
+                await Dispatcher.InvokeAsync(() => allTargets = GetSelectedCleanerTargets().Count);
+                if (allTargets < recommendedTargets)
+                {
+                    failures.Add("Cleaner alle Kategorien: " + allTargets);
+                    log.Add("[FAIL] Cleaner alle Ziele=" + allTargets);
+                }
+                else
+                    log.Add("[OK] Cleaner alle Ziele=" + allTargets);
+
+                foreach (var kv in CleanerChecks.ToList())
+                {
+                    await Dispatcher.InvokeAsync(() => kv.Value.IsChecked = false);
+                }
+                int none = 0;
+                await Dispatcher.InvokeAsync(() => none = GetSelectedCleanerTargets().Count);
+                if (none != 0)
+                {
+                    failures.Add("Cleaner keine Kategorie: erwartet 0, war " + none);
+                    log.Add("[FAIL] Cleaner leer Ziele=" + none);
+                }
+                else
+                    log.Add("[OK] Cleaner leer Ziele=0");
+            }
+            catch (Exception ex)
+            {
+                failures.Add("Cleaner: " + ex.Message);
+                log.Add("[FAIL] Cleaner | " + ex.Message);
+            }
+
+            if (string.Equals(Environment.GetEnvironmentVariable("REDLINE_UI_SCAN"), "1", StringComparison.Ordinal))
+            {
+                try
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        Navigate("Cleaner");
+                        ApplyRecommendedCleanerCategories(true);
+                    });
+                    await Task.Delay(500);
+                    await RunCleanerScanAsync();
+                    log.Add(CleanerScanDone ? "[OK] Cleaner Scan durchgelaufen" : "[FAIL] Cleaner Scan nicht fertig");
+                    if (!CleanerScanDone) failures.Add("Cleaner Scan");
+                    else
+                        log.Add("[OK] Cleaner Scan Bytes=" + _cleanerLastTotalBytes);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add("Cleaner Scan: " + ex.Message);
+                    log.Add("[FAIL] Cleaner Scan | " + ex.Message);
+                }
+            }
+
+            log.Add("");
+            log.Add(failures.Count == 0
+                ? "ERGEBNIS: ALLE UI-TESTS OK"
+                : "ERGEBNIS: " + failures.Count + " FEHLER");
+            string logPath = Path.Combine(Path.GetTempPath(), "redline-ui-selftest.log");
+            try { await File.WriteAllLinesAsync(logPath, log); } catch { }
+
+            await Task.Delay(300);
+            Environment.Exit(failures.Count == 0 ? 0 : 1);
         }
 
         private string GetThemeSettingsPath()
@@ -489,8 +615,8 @@ namespace GamingBooster_Pro
                 : T("\n\nHinweis: Einige Pro-Funktionen (Repair, DISM, DNS) brauchen zusätzlich Administrator-Rechte.", "\n\nNote: Some Pro features (repair, DISM, DNS) also require administrator rights.");
 
             MessageBox.Show(
-                T("„" + featureName + "“ kommt mit Redline Pro.\n\nStatus: Coming Soon – vorerst nutzt du die Free-Version.",
-                  "\"" + featureName + "\" will be part of Redline Pro.\n\nStatus: Coming Soon – you are on the Free version for now.") + adminHint,
+                T("„" + featureName + "“ ist Teil von Redline Pro (einmalig 10 €, Lifetime-Key in Einstellungen).",
+                  "\"" + featureName + "\" is part of Redline Pro (€10 one-time, lifetime key in Settings).") + adminHint,
                 "Redline Pro",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -499,7 +625,9 @@ namespace GamingBooster_Pro
         }
 
         private string GetProStatusShortLabel() =>
-            T("Pro: Coming Soon", "Pro: Coming Soon");
+            IsProActive()
+                ? T("Pro: Aktiv (Lifetime)", "Pro: Active (lifetime)")
+                : T("Pro: 10 € einmalig (Lifetime)", "Pro: €10 one-time (lifetime)");
 
         private string GetAdminStatusShortLabel()
         {
@@ -808,25 +936,18 @@ namespace GamingBooster_Pro
                 };
                 cta.Child = new TextBlock
                 {
-                    Text = T("COMING SOON", "COMING SOON"),
+                    Text = T("10 € · Lifetime", "€10 · Lifetime"),
                     Foreground = Brushes.White,
                     FontSize = 11,
                     FontWeight = FontWeights.Bold,
-                    HorizontalAlignment = HorizontalAlignment.Center
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    ToolTip = T("Einmalzahlung, Key in Einstellungen. Du (Entwickler): REDLINE-PRO-LIFETIME-DEV", "One-time payment, key in Settings. Dev key: REDLINE-PRO-LIFETIME-DEV")
                 };
                 p.Children.Add(cta);
             }
 
             card.Child = p;
-            card.MouseLeftButtonUp += (s, e) =>
-            {
-                MessageBox.Show(
-                    T("Redline Pro kommt in einem späteren Update.\n\nDu nutzt aktuell die kostenlose V9-Version mit allen Free-Funktionen.",
-                      "Redline Pro is coming in a future update.\n\nYou are using the free V9 with all free features."),
-                    T("Redline Pro – Coming Soon", "Redline Pro – Coming Soon"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            };
+            card.MouseLeftButtonUp += (s, e) => Navigate("Settings");
             wrap.Children.Add(card);
 
             wrap.Children.Add(new TextBlock
@@ -1635,6 +1756,49 @@ namespace GamingBooster_Pro
             return tile;
         }
 
+        private UIElement ProFeatureTile(string title, string desc, string badge, RoutedEventHandler click)
+        {
+            Border tile = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(120, 40, 10, 20)),
+                BorderBrush = Red,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(16),
+                Margin = new Thickness(0, 0, 12, 12),
+                Width = 280,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = desc + "\n\n" + T("Nur mit Pro-Lizenz (10 € Lifetime). Free-Version zeigt Info.", "Pro license only (€10 lifetime). Free shows info.")
+            };
+            tile.MouseLeftButtonUp += (s, e) => click(s, new RoutedEventArgs());
+
+            StackPanel p = new StackPanel();
+            Grid head = new Grid();
+            head.ColumnDefinitions.Add(new ColumnDefinition());
+            head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            head.Children.Add(new TextBlock { Text = title, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.UltraBold });
+            Border proBadge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(110, 16, 28)),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(8, 2, 8, 2),
+                Child = new TextBlock { Text = badge, Foreground = Brushes.White, FontSize = 10, FontWeight = FontWeights.Bold }
+            };
+            Grid.SetColumn(proBadge, 1);
+            head.Children.Add(proBadge);
+            p.Children.Add(head);
+            p.Children.Add(new TextBlock { Text = desc, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) });
+            p.Children.Add(new TextBlock
+            {
+                Text = IsProActive() ? T("● Pro aktiv", "● Pro active") : T("● Key in Einstellungen", "● Key in Settings"),
+                Foreground = IsProActive() ? AiGreen : AiOrange,
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold
+            });
+            tile.Child = p;
+            return tile;
+        }
+
         private Brush AiGreen => new SolidColorBrush(Color.FromRgb(62, 210, 86));
         private Brush AiOrange => new SolidColorBrush(Color.FromRgb(255, 161, 22));
         private Brush AiPurple => new SolidColorBrush(Color.FromRgb(162, 68, 255));
@@ -2026,6 +2190,15 @@ namespace GamingBooster_Pro
             return b;
         }
 
+        private void ApplyRecommendedCleanerCategories(bool recommendedOnly)
+        {
+            foreach (System.Collections.Generic.KeyValuePair<string, CheckBox> kv in CleanerChecks.ToList())
+            {
+                bool on = !recommendedOnly || CleanerRecommendedCategories.Contains(kv.Key, StringComparer.OrdinalIgnoreCase);
+                kv.Value.IsChecked = on;
+            }
+        }
+
         private UIElement CleanerCategoryRow(string categoryKey, string title, string sub, string amount, string icon, Brush color)
         {
             Border row = new Border
@@ -2033,7 +2206,8 @@ namespace GamingBooster_Pro
                 Background = new SolidColorBrush(Color.FromArgb(110, 23, 29, 38)),
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(12, 10, 12, 10),
-                Margin = new Thickness(0, 0, 0, 8)
+                Margin = new Thickness(0, 0, 0, 8),
+                ToolTip = title + "\n" + sub + "\n\n" + T("Hover: Häkchen = wird beim Scan geprüft.", "Hover: Checked = included in scan.")
             };
             Grid g = new Grid();
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -2885,7 +3059,19 @@ namespace GamingBooster_Pro
             StackPanel cp = new StackPanel();
             Grid ch = new Grid { Margin = new Thickness(0, 0, 0, 10) }; ch.ColumnDefinitions.Add(new ColumnDefinition()); ch.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             ch.Children.Add(new TextBlock { Text = T("Zu bereinigende Kategorien", "Categories to clean"), Foreground = Brushes.White, FontSize = 18, FontWeight = FontWeights.UltraBold });
-            ch.Children.Add(new TextBlock { Text = T("Empfohlen auswählen  ☑", "Select recommended  ☑"), Foreground = Brushes.White, FontSize = 13, VerticalAlignment = VerticalAlignment.Center }); Grid.SetColumn(ch.Children[ch.Children.Count-1], 1);
+            CheckBox recSelect = new CheckBox
+            {
+                Content = T("Empfohlen auswählen", "Select recommended"),
+                IsChecked = true,
+                Foreground = Brushes.White,
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = T("Aktiviert Browser Cache, Temp-Dateien und Shader Cache. Papierkorb/DNS bleiben aus.", "Enables browser cache, temp files and shader cache. Recycle bin/DNS stay off.")
+            };
+            recSelect.Checked += (s, e) => ApplyRecommendedCleanerCategories(true);
+            recSelect.Unchecked += (s, e) => ApplyRecommendedCleanerCategories(false);
+            Grid.SetColumn(recSelect, 1);
+            ch.Children.Add(recSelect);
             cp.Children.Add(ch);
             string catStatus = CleanerScanDone ? T("Bereit", "Ready") : T("Wird nach Scan geprüft", "Checked after scan");
             cp.Children.Add(CleanerCategoryRow("Browser Cache", "Browser Cache", T("Temporäre Internetdateien und Cache von Browsern", "Temporary internet files and browser cache"), catStatus, "🌐", AiBlue));
@@ -2896,6 +3082,7 @@ namespace GamingBooster_Pro
             cp.Children.Add(CleanerCategoryRow("DNS/Netzwerkreste", T("DNS/Netzwerkreste", "DNS/network leftovers"), T("DNS-Cache, Logs und Netzwerkreste", "DNS cache, logs and network leftovers"), catStatus, "DNS", AiBlue));
             cats.Child = cp;
             left.Children.Add(cats);
+            ApplyRecommendedCleanerCategories(true);
 
             Border total = DashboardCard();
             total.Padding = new Thickness(18);
@@ -3163,6 +3350,12 @@ namespace GamingBooster_Pro
             tiles.Children.Add(PerfFeatureTile(T("VISUELLE EFFEKTE", "VISUAL EFFECTS"), T("Reduziert Effekte für mehr FPS.", "Reduces effects for more FPS."), T("Öffnen", "Open"), (s, e) => SafeStartSystem("SystemPropertiesPerformance.exe")));
             tiles.Children.Add(PerfFeatureTile(T("HINTERGRUNDDIENSTE", "BACKGROUND SERVICES"), T("Deaktiviert unnötige Dienste.", "Disables unnecessary services."), T("Verwalten", "Manage"), (s, e) => Navigate("Startup")));
             tiles.Children.Add(PerfFeatureTile(T("AUTOSTART PRÜFEN", "CHECK AUTOSTART"), T("Verwalte Autostart-Programme.", "Manage startup programs."), T("Verwalten", "Manage"), (s, e) => Navigate("Startup")));
+            tiles.Children.Add(ProFeatureTile(
+                "WINDOWS FPS BOOST",
+                T("Pro: Game Mode, Energieplan, Game Bar, visuelle Effekte und Hintergrund-Dienste in einem Durchlauf.",
+                  "Pro: Game Mode, power plan, Game Bar, visual effects and background tuning in one run."),
+                "PRO",
+                WindowsFpsBoostPro_Click));
             left.Children.Add(tiles);
 
             Grid.SetColumn(left, 0);
@@ -3663,6 +3856,7 @@ namespace GamingBooster_Pro
             tiles.Children.Add(ModernTile("Intel", T("Intel Support", "Intel support"), "IN", CardBg2, (s, e) => OpenUri("https://www.intel.com/content/www/us/en/support/detect.html")));
             tiles.Children.Add(ModernTile("Realtek", T("Realtek Audio/LAN", "Realtek audio/LAN"), "RT", CardBg2, (s, e) => OpenUri("https://www.realtek.com/Download/List?cate_id=584")));
             tiles.Children.Add(ModernTile(T("Report", "Report"), T("Treiber-Report speichern", "Save driver report"), "TXT", AiPurple, DriverReport_Click));
+            tiles.Children.Add(ModernTile("PRO AUTO", T("Pro: Öffnet NVIDIA/AMD/Intel Update-Seiten + Scan", "Pro: Opens NVIDIA/AMD/Intel update pages + scan"), "PRO", Red, DriversAutoUpdatePro_Click));
             vp.Children.Add(tiles);
             vendors.Child = vp;
             left.Children.Add(vendors);
@@ -4414,49 +4608,7 @@ namespace GamingBooster_Pro
             ai.Unchecked += (s, e) => { AiAssistantEnabled = false; PersistSettings(); };
             p.Children.Add(SettingsRow("AI", T("AI-Assistent aktivieren", "Enable AI assistant"), T("Lokale Empfehlungen auf Basis echter Systemdaten.", "Local recommendations based on real system data."), ai));
 
-            Border proSoonBox = new Border
-            {
-                Background = SubCardBg,
-                BorderBrush = Border,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(14),
-                Margin = new Thickness(0, 0, 0, 14)
-            };
-            StackPanel proSoonP = new StackPanel();
-            proSoonP.Children.Add(new TextBlock
-            {
-                Text = T("REDLINE PRO", "REDLINE PRO"),
-                Foreground = Brushes.White,
-                FontSize = 15,
-                FontWeight = FontWeights.UltraBold,
-                Margin = new Thickness(0, 0, 0, 10)
-            });
-            proSoonP.Children.Add(new TextBlock
-            {
-                Text = T("COMING SOON", "COMING SOON"),
-                Foreground = Red,
-                FontSize = 18,
-                FontWeight = FontWeights.UltraBold,
-                Margin = new Thickness(0, 0, 0, 8)
-            });
-            proSoonP.Children.Add(new TextBlock
-            {
-                Text = GetProStatusShortLabel() + "  ·  " + GetAdminStatusShortLabel(),
-                Foreground = Muted,
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 0, 10)
-            });
-            proSoonP.Children.Add(new TextBlock
-            {
-                Text = T("Pro-Funktionen (Deep Scan, Cleaner anwenden, KI-Profile) folgen in einem späteren Update.\nRepair/DISM/DNS: als Administrator starten.",
-                  "Pro features (deep scan, apply cleaner, AI profiles) arrive in a future update.\nRepair/DISM/DNS: run as administrator."),
-                Foreground = Muted,
-                FontSize = 11,
-                TextWrapping = TextWrapping.Wrap
-            });
-            proSoonBox.Child = proSoonP;
-            p.Children.Add(proSoonBox);
+            p.Children.Add(BuildSettingsProLicenseCard());
 
             prefs.Child = p;
             left.Children.Add(prefs);
@@ -4497,6 +4649,130 @@ namespace GamingBooster_Pro
             string page = string.IsNullOrWhiteSpace(CurrentPage) ? "Dashboard" : CurrentPage;
             RebuildShell();
             Navigate(page);
+        }
+
+        private UIElement BuildSettingsProLicenseCard()
+        {
+            Border box = new Border
+            {
+                Background = SubCardBg,
+                BorderBrush = Border,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(14),
+                Margin = new Thickness(0, 0, 0, 14)
+            };
+            StackPanel sp = new StackPanel();
+            sp.Children.Add(new TextBlock
+            {
+                Text = T("REDLINE PRO · 10 € EINMALIG (LIFETIME)", "REDLINE PRO · €10 ONE-TIME (LIFETIME)"),
+                Foreground = Brushes.White,
+                FontSize = 14,
+                FontWeight = FontWeights.UltraBold,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+            sp.Children.Add(new TextBlock
+            {
+                Text = GetProStatusShortLabel() + "  ·  " + GetAdminStatusShortLabel(),
+                Foreground = IsProActive() ? AiGreen : Muted,
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+
+            if (IsProActive())
+            {
+                sp.Children.Add(new TextBlock
+                {
+                    Text = T("Pro ist aktiv. Lifetime-Key: ", "Pro is active. Lifetime key: ") + (RedlineAppData.Current.ProLicenseMasked.Length > 0 ? RedlineAppData.Current.ProLicenseMasked : "—"),
+                    Foreground = Muted,
+                    FontSize = 11,
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+            else
+            {
+                TextBox keyBox = new TextBox
+                {
+                    Height = 38,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Background = new SolidColorBrush(Color.FromRgb(16, 21, 29)),
+                    Foreground = Brushes.White,
+                    BorderBrush = Border,
+                    ToolTip = T("Lifetime-Key aus Kauf-Mail einfügen. Entwickler-Test: REDLINE-PRO-LIFETIME-DEV", "Paste lifetime key from purchase email. Dev test: REDLINE-PRO-LIFETIME-DEV")
+                };
+                sp.Children.Add(keyBox);
+                Button activate = RedButton(T("PRO AKTIVIEREN", "ACTIVATE PRO"), (s, e) =>
+                {
+                    if (RedlineAppData.Current.TryActivateLicenseKey(keyBox.Text, out string err))
+                    {
+                        PersistSettings();
+                        MessageBox.Show(T("Pro aktiviert – alle Pro-Funktionen freigeschaltet.", "Pro activated – all Pro features unlocked."), "Redline Pro", MessageBoxButton.OK, MessageBoxImage.Information);
+                        Navigate("Settings");
+                    }
+                    else
+                        MessageBox.Show(err, "Redline Pro", MessageBoxButton.OK, MessageBoxImage.Warning);
+                });
+                activate.Height = 40;
+                sp.Children.Add(activate);
+            }
+
+            sp.Children.Add(new TextBlock
+            {
+                Text = T("Pro-Funktionen (Hover für Erklärung):", "Pro features (hover for help):"),
+                Foreground = Muted,
+                FontSize = 11,
+                Margin = new Thickness(0, 10, 0, 6)
+            });
+            foreach (string line in new[]
+            {
+                "• " + T("Windows FPS Boost (Performance)", "Windows FPS Boost (Performance)"),
+                "• " + T("Automatische Treiber-Updates (Driver)", "Automatic driver updates (Drivers)"),
+                "• " + T("Tiefer Systemscan", "Deep system scan"),
+                "• " + T("KI-Profil anwenden", "Apply AI profile")
+            })
+            {
+                TextBlock tb = new TextBlock { Text = line, Foreground = Muted, FontSize = 11, Margin = new Thickness(0, 0, 0, 4) };
+                tb.ToolTip = line;
+                sp.Children.Add(tb);
+            }
+
+            box.Child = sp;
+            return box;
+        }
+
+        private async void WindowsFpsBoostPro_Click(object sender, RoutedEventArgs e)
+        {
+            if (!RequirePro(T("Windows FPS Boost", "Windows FPS Boost"))) return;
+            PrepareActionOutput();
+            await SafeRun("Windows FPS Boost Pro", async () =>
+            {
+                await Log("===== WINDOWS FPS BOOST (PRO) =====");
+                await SetGameModeEnabled(true);
+                await Log("✓ Game Mode");
+                await SetHighPerformance();
+                await Log("✓ Hochleistungs-Energieplan");
+                await FlushDNS();
+                await Log("✓ DNS Cache");
+                OpenUri("ms-settings:gaming-gamebar");
+                await Log("→ Game Bar Einstellungen geöffnet");
+                SafeStartSystem("SystemPropertiesPerformance.exe");
+                await Log("→ Visuelle Effekte geöffnet");
+                await Log(T("Fertig. Für Autostart: Seite Autostart.", "Done. For startup: open Autostart page."));
+            });
+        }
+
+        private async void DriversAutoUpdatePro_Click(object sender, RoutedEventArgs e)
+        {
+            if (!RequirePro(T("Automatische Treiber-Updates", "Automatic driver updates"))) return;
+            PrepareActionOutput();
+            await RunDriverScan();
+            await Log("");
+            await Log(T("Pro: Öffne offizielle Update-Seiten...", "Pro: Opening official update pages..."));
+            OpenUri("https://www.nvidia.com/Download/index.aspx");
+            OpenUri("https://www.amd.com/en/support/download/drivers.html");
+            OpenUri("https://www.intel.com/content/www/us/en/support/detect.html");
+            OpenUri("ms-settings:windowsupdate");
+            await Log(T("Installiere Treiber manuell in den geöffneten Fenstern.", "Install drivers manually in the opened windows."));
         }
 
         private void PrivacySettings_Click(object? sender, RoutedEventArgs e)
@@ -9752,10 +10028,10 @@ private Border ModernOutputCard(string startText)
 
                 if (ModernCleanerCategoryEnabled("Browser Cache"))
                 {
-                    AddIfCheckedOrDefault("Chrome Cache", new CleanTarget("Chrome Cache", Path.Combine(chromeDefault, "Cache"), false));
-                    AddIfCheckedOrDefault("Chrome Code Cache", new CleanTarget("Chrome Code Cache", Path.Combine(chromeDefault, "Code Cache"), false));
-                    AddIfCheckedOrDefault("Edge Cache", new CleanTarget("Edge Cache", Path.Combine(edgeDefault, "Cache"), false));
-                    AddIfCheckedOrDefault("Edge Code Cache", new CleanTarget("Edge Code Cache", Path.Combine(edgeDefault, "Code Cache"), false));
+                    list.Add(new CleanTarget("Chrome Cache", Path.Combine(chromeDefault, "Cache"), false));
+                    list.Add(new CleanTarget("Chrome Code Cache", Path.Combine(chromeDefault, "Code Cache"), false));
+                    list.Add(new CleanTarget("Edge Cache", Path.Combine(edgeDefault, "Cache"), false));
+                    list.Add(new CleanTarget("Edge Code Cache", Path.Combine(edgeDefault, "Code Cache"), false));
 
                     string ffLocalProfiles = Path.Combine(local, @"Mozilla\Firefox\Profiles");
                     if (Directory.Exists(ffLocalProfiles))
@@ -9767,23 +10043,23 @@ private Border ModernOutputCard(string startText)
 
                 if (ModernCleanerCategoryEnabled("Temporäre Dateien"))
                 {
-                    AddIfCheckedOrDefault("Windows Temp", new CleanTarget("Windows Temp", Path.GetTempPath(), false));
-                    AddIfCheckedOrDefault("Windows System Temp", new CleanTarget("Windows System Temp", @"C:\Windows\Temp", false));
-                    AddIfCheckedOrDefault("Windows Logs", new CleanTarget("Windows Logs", Path.Combine(win, "Logs"), false));
+                    list.Add(new CleanTarget("Windows Temp", Path.GetTempPath(), false));
+                    list.Add(new CleanTarget("Windows System Temp", @"C:\Windows\Temp", false));
+                    list.Add(new CleanTarget("Windows Logs", Path.Combine(win, "Logs"), false));
                 }
 
                 if (ModernCleanerCategoryEnabled("Shader Cache"))
                 {
-                    AddIfCheckedOrDefault("DirectX Shader Cache", new CleanTarget("DirectX Shader Cache", Path.Combine(local, "D3DSCache"), false));
-                    AddIfCheckedOrDefault("NVIDIA DXCache", new CleanTarget("NVIDIA DXCache", Path.Combine(local, @"NVIDIA\DXCache"), false));
-                    AddIfCheckedOrDefault("NVIDIA GLCache", new CleanTarget("NVIDIA GLCache", Path.Combine(local, @"NVIDIA\GLCache"), false));
-                    AddIfCheckedOrDefault("Steam Shader Cache", new CleanTarget("Steam Shader Cache", Path.Combine(pf86, @"Steam\steamapps\shadercache"), false));
+                    list.Add(new CleanTarget("DirectX Shader Cache", Path.Combine(local, "D3DSCache"), false));
+                    list.Add(new CleanTarget("NVIDIA DXCache", Path.Combine(local, @"NVIDIA\DXCache"), false));
+                    list.Add(new CleanTarget("NVIDIA GLCache", Path.Combine(local, @"NVIDIA\GLCache"), false));
+                    list.Add(new CleanTarget("Steam Shader Cache", Path.Combine(pf86, @"Steam\steamapps\shadercache"), false));
                 }
 
                 if (ModernCleanerCategoryEnabled("Download-Reste"))
                 {
-                    AddIfCheckedOrDefault("Steam Download Cache", new CleanTarget("Steam Download Cache", Path.Combine(pf86, @"Steam\steamapps\downloading"), false));
-                    AddIfCheckedOrDefault("Epic Games Cache", new CleanTarget("Epic Games Cache", Path.Combine(local, @"EpicGamesLauncher\Saved\webcache"), false));
+                    list.Add(new CleanTarget("Steam Download Cache", Path.Combine(pf86, @"Steam\steamapps\downloading"), false));
+                    list.Add(new CleanTarget("Epic Games Cache", Path.Combine(local, @"EpicGamesLauncher\Saved\webcache"), false));
                 }
 
                 return list;
