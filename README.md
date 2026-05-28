@@ -14,7 +14,9 @@ Premium PC gaming optimizer for Windows (WPF, .NET 10).
 
 ## Download
 
-Releases: [github.com/LegendR622/Redline-Gaming-Optimizer/releases](https://github.com/LegendR622/Redline-Gaming-Optimizer/releases)
+**Nur eine Datei:** `Redline_Gaming_Optimizer_Setup_v9.16.exe` (Windows-Installer)
+
+[GitHub Releases](https://github.com/LegendR622/Redline-Gaming-Optimizer/releases) – keine ZIP-Ordner mehr nötig.
 
 ## Run locally
 
@@ -34,10 +36,10 @@ In the app: **Update** → **UPDATE AUTOMATISCH INSTALLIEREN**
 ## Create a new release
 
 ```powershell
-.\scripts\build-release.ps1 -Version 9.1
+.\scripts\publish-github-clean.ps1 -Version 9.16
 ```
 
-Then upload the zip from `dist\` to GitHub Releases and push `version.json` on `main`.
+Baut Setup-EXE, löscht alte Releases, veröffentlicht nur die Installer-EXE.
 
 ## License
 

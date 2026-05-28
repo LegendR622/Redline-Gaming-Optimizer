@@ -110,7 +110,8 @@ namespace GamingBooster_Pro
                     ? bodyEl.GetString() ?? ""
                     : "";
 
-                string? zipUrl = null;
+                string? downloadUrl = null;
+                string? zipFallback = null;
                 if (root.TryGetProperty("assets", out JsonElement assets) && assets.ValueKind == JsonValueKind.Array)
                 {
                     foreach (JsonElement asset in assets.EnumerateArray())
@@ -118,23 +119,36 @@ namespace GamingBooster_Pro
                         string name = asset.TryGetProperty("name", out JsonElement nameEl)
                             ? nameEl.GetString() ?? ""
                             : "";
-                        if (!name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        zipUrl = asset.TryGetProperty("browser_download_url", out JsonElement urlEl)
+                        string? url = asset.TryGetProperty("browser_download_url", out JsonElement urlEl)
                             ? urlEl.GetString()
                             : null;
-                        break;
+                        if (string.IsNullOrWhiteSpace(url))
+                            continue;
+
+                        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                            && name.Contains("Setup", StringComparison.OrdinalIgnoreCase))
+                        {
+                            downloadUrl = url;
+                            break;
+                        }
+
+                        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && downloadUrl == null)
+                            downloadUrl = url;
+
+                        if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && zipFallback == null)
+                            zipFallback = url;
                     }
                 }
 
-                if (string.IsNullOrWhiteSpace(version) || string.IsNullOrWhiteSpace(zipUrl))
+                downloadUrl ??= zipFallback;
+
+                if (string.IsNullOrWhiteSpace(version) || string.IsNullOrWhiteSpace(downloadUrl))
                     return null;
 
                 return new RedlineUpdateManifest
                 {
                     Version = version,
-                    DownloadUrl = zipUrl,
+                    DownloadUrl = downloadUrl,
                     Notes = string.IsNullOrWhiteSpace(notes) ? "GitHub Release latest" : notes,
                     Source = "api.github.com/releases/latest"
                 };
