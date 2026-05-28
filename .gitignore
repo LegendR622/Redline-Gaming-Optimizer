@@ -1,0 +1,12 @@
+bin/
+obj/
+publish/
+dist/
+*.user
+*.suo
+.vs/
+screenshots/
+*.pdb
+*.cache
+**/PublishOutputs.*.txt
+FUNktionstest.log

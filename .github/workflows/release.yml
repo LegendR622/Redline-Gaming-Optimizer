@@ -1,0 +1,50 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish win-x64
+        run: |
+          dotnet publish GamingBooster_Pro/GamingBooster_Pro.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
+
+      - name: Create zip
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          New-Item -ItemType Directory -Force -Path dist
+          Compress-Archive -Path publish/win-x64/* -DestinationPath "dist/Redline_V${ver}_win-x64.zip" -Force
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
+
+      - name: Update version.json on tag
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          $zip = "Redline_V${ver}_win-x64.zip"
+          $url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$zip"
+          @{ version = $ver; downloadUrl = $url; notes = "Release ${{ github.ref_name }}"; packageType = "zip" } | ConvertTo-Json | Set-Content version.json -Encoding UTF8
+
+      - name: Commit version.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git diff --staged --quiet || git commit -m "chore: update version.json for ${{ github.ref_name }}"
+          git push

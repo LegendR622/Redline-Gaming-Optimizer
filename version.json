@@ -1,5 +1,6 @@
 {
-  "version": "5.5",
-  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v5.5/Redline_Gaming_Optimizer_Setup_v5.5.exe",
-  "notes": "Update Center eingebaut: Redline kann jetzt online nach neuen Versionen suchen, den Installer herunterladen und starten."
+  "version": "9.0",
+  "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.0/Redline_V9.0_win-x64.zip",
+  "notes": "Redline Gaming Optimizer V9 - Free Edition",
+  "packageType": "zip"
 }

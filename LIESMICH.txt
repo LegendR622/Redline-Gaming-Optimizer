@@ -1,0 +1,46 @@
+REDLINE GAMING OPTIMIZER V9.0
+=============================
+
+Neueste Version (bearbeitet während du weg warst):
+
+  Starten (Desktop-Verknüpfung):
+    C:\Users\Tobi\Desktop\Redline Gaming Optimizer.lnk
+
+  Oder direkt:
+    C:\Users\Tobi\Desktop\GamingBooster_Pro\publish\win-x64\GamingBooster_Pro.exe
+
+  Quellcode:
+    C:\Users\Tobi\Desktop\GamingBooster_Pro\GamingBooster_Pro\
+
+  Screenshots:
+    C:\Users\Tobi\Desktop\GamingBooster_Pro\screenshots\
+
+Schnellstart ohne Intro:
+  set REDLINE_SKIP_INTRO=1
+  oder: GamingBooster_Pro.exe --nosplash
+
+Pro: Coming Soon (keine Lizenz-Eingabe, App bleibt Free)
+
+GitHub:
+  https://github.com/LegendR622/Redline-Gaming-Optimizer
+  Anleitung: GITHUB_EINRICHTUNG.md
+
+Auto-Update in der App:
+  Sidebar → Update → UPDATE AUTOMATISCH INSTALLIEREN
+
+Automatischer Funktionstest (Build, WMI, Registry, App-Start):
+  powershell -File C:\Users\Tobi\Desktop\GamingBooster_Pro\FUNktionstest.ps1
+
+Direkt zu einer Seite (ohne Intro):
+  set REDLINE_SKIP_INTRO=1
+  set REDLINE_START_PAGE=Update
+  (Dashboard, GameProfiles, Optimierung, Cleaner, Security, Network, Drivers, Repair, Update, Settings, Startup)
+
+Einstellungen gespeichert in:
+  %AppData%\RedlineGamingOptimizer\settings.json
+
+Gelöschte alte Kopien:
+  Redline_Gaming_Optimizer_V9
+  GamingBooster_Pro_V9_EXE
+
+Hinweis: Ordner Desktop\ba konnte nicht gelöscht werden (Cursor Workspace).
