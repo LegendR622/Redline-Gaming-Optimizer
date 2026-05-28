@@ -8,6 +8,7 @@ using System.Linq;
 using System.Management;
 using System.Net.NetworkInformation;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.Json.Nodes;
@@ -99,7 +100,8 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerScanHint;
 
         private const string CurrentAppVersion = "9.1";
-        private const string UpdateJsonUrl = "https://raw.githubusercontent.com/LegendR622/Redline-Gaming-Optimizer/main/version.json";
+        // jsDelivr statt raw.githubusercontent.com (kein veralteter CDN-Cache auf dem Client)
+        private const string UpdateJsonUrl = "https://cdn.jsdelivr.net/gh/LegendR622/Redline-Gaming-Optimizer@main/version.json";
 
         private readonly RedlineTheme _theme = new RedlineTheme();
         private Brush Bg => _theme.Bg;
@@ -307,7 +309,7 @@ namespace GamingBooster_Pro
 
             p.Children.Add(new TextBlock
             {
-                Text = "V" + CurrentAppVersion + " · UPDATE TEST",
+                Text = "V" + CurrentAppVersion + (CurrentAppVersion.StartsWith("9.1", StringComparison.Ordinal) ? " · UPDATE OK" : " · AI EDITION"),
                 Foreground = Red,
                 FontSize = 16,
                 FontWeight = FontWeights.SemiBold,
@@ -2059,15 +2061,18 @@ namespace GamingBooster_Pro
             hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             StackPanel hdrLeft = new StackPanel();
             hdrLeft.Children.Add(new TextBlock { Text = "DASHBOARD", Foreground = TextPrimary, FontSize = 34, FontWeight = FontWeights.UltraBold });
-            hdrLeft.Children.Add(new TextBlock
+            if (CurrentAppVersion.StartsWith("9.1", StringComparison.Ordinal))
             {
-                Text = T("V9.1 – Update erfolgreich! Grüner Footer = neue Version aktiv.",
-                         "V9.1 – Update successful! Green footer = new version active."),
-                Foreground = AiGreen,
-                FontSize = 14,
-                FontWeight = FontWeights.Bold,
-                Margin = new Thickness(0, 6, 0, 0)
-            });
+                hdrLeft.Children.Add(new TextBlock
+                {
+                    Text = T("V9.1 – Update erfolgreich! Grüner Footer = neue Version aktiv.",
+                             "V9.1 – Update successful! Green footer = new version active."),
+                    Foreground = AiGreen,
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 6, 0, 0)
+                });
+            }
             hdrLeft.Children.Add(new TextBlock
             {
                 Text = T("Übersicht über die Leistung, den Status und die Optimierung deines Systems.",
@@ -9117,14 +9122,17 @@ private Border ModernOutputCard(string startText)
 
                 await Log("===== REDLINE UPDATE CHECK =====");
                 await Log("Installierte Version: " + CurrentAppVersion);
-                await Log("Prüfe: " + UpdateJsonUrl);
+                string jsonUrl = UpdateJsonUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                await Log("Prüfe: " + jsonUrl);
                 await Log("");
 
                 using HttpClient client = new HttpClient();
-                client.Timeout = TimeSpan.FromSeconds(15);
+                client.Timeout = TimeSpan.FromSeconds(30);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineGamingOptimizer/" + CurrentAppVersion);
+                client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
 
-                string json = await client.GetStringAsync(UpdateJsonUrl);
+                string json = await client.GetStringAsync(jsonUrl);
+                json = json.Trim('\uFEFF', ' ', '\r', '\n');
 
                 if (Progress != null)
                     Progress.Value = 25;
