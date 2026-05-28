@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Microsoft.Win32;
 
 namespace GamingBooster_Pro
@@ -34,6 +35,36 @@ namespace GamingBooster_Pro
         }
 
         public static bool IsSetupInstalled() => TryGetInstalledLocation(out _);
+
+        public static string? TryGetInstalledVersion()
+        {
+            try
+            {
+                foreach (RegistryHive hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
+                {
+                    using RegistryKey baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Registry64);
+                    using RegistryKey? key = baseKey.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + UninstallKeyName);
+                    string? raw = key?.GetValue("DisplayVersion") as string;
+                    if (string.IsNullOrWhiteSpace(raw))
+                        continue;
+                    return NormalizeVersionLabel(raw);
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static string NormalizeVersionLabel(string raw)
+        {
+            string cleaned = new string(raw.Where(c => char.IsDigit(c) || c == '.').ToArray());
+            if (string.IsNullOrWhiteSpace(cleaned))
+                return raw.Trim();
+            string[] parts = cleaned.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+                return parts[0] + "." + parts[1];
+            return cleaned;
+        }
 
         public static string BuildSilentInstallerArgs()
         {

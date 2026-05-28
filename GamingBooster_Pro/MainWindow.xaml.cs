@@ -104,7 +104,9 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.22";
+        private const string CurrentAppVersion = "9.23";
+        private TextBlock? _updateInstalledVersionLabel;
+        private TextBlock? _updateOnlineVersionLabel;
 
         private bool _startupAutoUpdateStarted;
         private string? _pendingUpdateBannerVersion;
@@ -256,7 +258,38 @@ namespace GamingBooster_Pro
 
             _startupAutoUpdateStarted = true;
             await Task.Delay(2000);
-            await CheckForUpdatesAsync(true, true, startupAuto: true);
+            await CheckForUpdatesAsync(allowDownload: true, startupAuto: true);
+        }
+
+        private string GetDisplayAppVersion()
+        {
+            string? installed = RedlineInstallHelper.TryGetInstalledVersion();
+            if (string.IsNullOrWhiteSpace(installed))
+                return CurrentAppVersion;
+            try
+            {
+                return RedlineOnlineUpdate.CompareVersions(installed, CurrentAppVersion) >= 0
+                    ? installed
+                    : CurrentAppVersion;
+            }
+            catch
+            {
+                return installed;
+            }
+        }
+
+        private void RefreshUpdateVersionLabels(string? onlineVersion = null)
+        {
+            string installed = GetDisplayAppVersion();
+            if (_updateInstalledVersionLabel != null)
+                _updateInstalledVersionLabel.Text = T("Installierte Version: ", "Installed version: ") + installed;
+            if (_updateOnlineVersionLabel != null)
+            {
+                _updateOnlineVersionLabel.Text = string.IsNullOrWhiteSpace(onlineVersion)
+                    ? T("Online: —", "Online: —")
+                    : T("Neueste offizielle Version: ", "Latest official version: ") + onlineVersion;
+                _updateOnlineVersionLabel.Foreground = string.IsNullOrWhiteSpace(onlineVersion) ? Muted : AiGreen;
+            }
         }
 
         private static bool IsUiSelfTestMode() =>
@@ -2573,13 +2606,14 @@ namespace GamingBooster_Pro
             hdrLeft.Children.Add(new TextBlock { Text = "DASHBOARD", Foreground = TextPrimary, FontSize = 34, FontWeight = FontWeights.UltraBold });
             string? updateBanner = _pendingUpdateBannerVersion ?? RedlineAppData.ConsumePendingUpdateBanner();
             _pendingUpdateBannerVersion = null;
+            string displayVer = GetDisplayAppVersion();
             if (!string.IsNullOrWhiteSpace(updateBanner)
-                && string.Equals(updateBanner, CurrentAppVersion, StringComparison.OrdinalIgnoreCase))
+                && string.Equals(updateBanner, displayVer, StringComparison.OrdinalIgnoreCase))
             {
                 hdrLeft.Children.Add(new TextBlock
                 {
-                    Text = T("Neues Update installiert (V" + CurrentAppVersion + ").",
-                             "New update installed (V" + CurrentAppVersion + ")."),
+                    Text = T("Neues Update installiert (V" + displayVer + ").",
+                             "New update installed (V" + displayVer + ")."),
                     Foreground = AiGreen,
                     FontSize = 14,
                     FontWeight = FontWeights.Bold,
@@ -4992,20 +5026,35 @@ namespace GamingBooster_Pro
 
             left.Children.Add(HeroCard(
                 T("Redline Update Center", "Redline Update Center"),
-                T("Auto-Update beim App-Start ist aktiv. Zusätzlich: manuell prüfen oder sofort installieren.",
-                  "Auto-update on app start is enabled. You can also check manually or install now.")
+                T("Nur offizielle GitHub-Releases. Nach dem Download fragt Redline: Jetzt installieren? Ja/Nein.",
+                  "Official GitHub releases only. After download Redline asks: Install now? Yes/No.")
             ));
 
             Border card = Card();
             StackPanel p = new StackPanel();
 
-            p.Children.Add(LabelText(T("Update Status", "Update Status"), Red));
-            p.Children.Add(InfoLine(T("Installierte Version: ", "Installed version: ") + CurrentAppVersion));
+            p.Children.Add(LabelText(T("Live-Status", "Live status"), Red));
+            _updateInstalledVersionLabel = new TextBlock
+            {
+                Text = T("Installierte Version: ", "Installed version: ") + GetDisplayAppVersion(),
+                Foreground = Brushes.White,
+                FontSize = 14,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            p.Children.Add(_updateInstalledVersionLabel);
+            _updateOnlineVersionLabel = new TextBlock
+            {
+                Text = T("Online: wird geprüft…", "Online: checking…"),
+                Foreground = Muted,
+                FontSize = 14,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            p.Children.Add(_updateOnlineVersionLabel);
             p.Children.Add(InfoLine(T("Auto-Update beim Start: ", "Auto-update on start: ")
-                + (RedlineAppData.Current.AutoUpdateOnStartup ? T("AN", "ON") : T("AUS", "OFF"))));
-            p.Children.Add(InfoLine("GitHub: LegendR622 / Redline-Gaming-Optimizer"));
+                + (RedlineAppData.Current.AutoUpdateOnStartup ? T("AN (mit Ja/Nein)", "ON (with Yes/No)") : T("AUS", "OFF"))));
+            p.Children.Add(InfoLine("GitHub: github.com/LegendR622/Redline-Gaming-Optimizer"));
 
-            Button autoUpdate = ActionButton(T("UPDATE AUTOMATISCH INSTALLIEREN", "INSTALL UPDATE AUTOMATICALLY"), Red, 380);
+            Button autoUpdate = ActionButton(T("UPDATE PRÜFEN & INSTALLIEREN", "CHECK & INSTALL UPDATE"), Red, 400);
             autoUpdate.Margin = new Thickness(0, 16, 0, 0);
             autoUpdate.Click += UpdateAutoInstall_Click;
 
@@ -5028,22 +5077,25 @@ namespace GamingBooster_Pro
             grid.Children.Add(left);
 
             StackPanel right = new StackPanel();
-            OutputBox = OutputConsole(GetUpdatePageStartupLog());
-            right.Children.Add(OutputBox);
-
-            Progress = new ProgressBar
-            {
-                Height = 18,
-                Maximum = 100,
-                Value = 0,
-                Margin = new Thickness(0, 16, 0, 0)
-            };
-            right.Children.Add(Progress);
+            Border logCard = CreateLiveLogCard(
+                T("LIVE LOG · UPDATE", "LIVE LOG · UPDATE"),
+                GetUpdatePageStartupLog(),
+                480);
+            right.Children.Add(logCard);
 
             Grid.SetColumn(right, 1);
             grid.Children.Add(right);
 
+            _ = RunUpdatePageLiveCheckAsync();
             return grid;
+        }
+
+        private async Task RunUpdatePageLiveCheckAsync()
+        {
+            await Task.Delay(300);
+            RefreshUpdateVersionLabels();
+            if (CurrentPage == "Update")
+                await CheckForUpdatesAsync(allowDownload: false, startupAuto: false);
         }
 
         private UIElement PageHelp()
@@ -10431,7 +10483,7 @@ private Border ModernOutputCard(string startText) =>
 
         private string GetUpdatePageStartupLog()
         {
-            return RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), CurrentAppVersion);
+            return RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), GetDisplayAppVersion());
         }
 
         private static void RecordUpdateLog(string installed, string online, string notes, string result)
@@ -10442,16 +10494,32 @@ private Border ModernOutputCard(string startText) =>
         private async void UpdateCheck_Click(object sender, RoutedEventArgs e)
         {
             PrepareActionOutput();
-            await CheckForUpdatesAsync(false, false, startupAuto: false);
+            await CheckForUpdatesAsync(allowDownload: false, startupAuto: false);
         }
 
         private async void UpdateAutoInstall_Click(object sender, RoutedEventArgs e)
         {
             PrepareActionOutput();
-            await CheckForUpdatesAsync(true, true, startupAuto: false);
+            await CheckForUpdatesAsync(allowDownload: true, startupAuto: false);
         }
 
-        private async Task CheckForUpdatesAsync(bool allowDownload, bool autoInstall, bool startupAuto)
+        private async Task<bool> PromptInstallUpdateAsync(string version, string setupPath)
+        {
+            return await Dispatcher.InvokeAsync(() =>
+            {
+                MessageBoxResult r = MessageBox.Show(
+                    T("Update V", "Update V") + version + T(" wurde von GitHub heruntergeladen.\n\n", " was downloaded from GitHub.\n\n")
+                    + setupPath + "\n\n"
+                    + T("Jetzt installieren?\n\nJa = Setup startet, Redline schließt sich.\nNein = nur Download (später manuell).",
+                        "Install now?\n\nYes = runs setup, Redline closes.\nNo = download only (install manually later)."),
+                    T("Redline Update", "Redline Update"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                return r == MessageBoxResult.Yes;
+            });
+        }
+
+        private async Task CheckForUpdatesAsync(bool allowDownload, bool startupAuto)
         {
             await SafeRun(startupAuto ? "Auto-Update Start" : "Update Check", async () =>
             {
@@ -10461,8 +10529,10 @@ private Border ModernOutputCard(string startText) =>
                 await Log(startupAuto
                     ? "===== REDLINE AUTO-UPDATE (BEIM START) ====="
                     : "===== REDLINE UPDATE CHECK =====");
-                await Log("Installierte Version: " + CurrentAppVersion);
-                await Log(T("Prüfe GitHub (raw + Releases API + CDN)...", "Checking GitHub (raw + Releases API + CDN)..."));
+                RefreshUpdateVersionLabels();
+                await Log(T("Installierte Version: ", "Installed version: ") + GetDisplayAppVersion());
+                await Log(T("Prüfe offizielle GitHub-Quelle (Releases API + version.json)...",
+                    "Checking official GitHub source (Releases API + version.json)..."));
                 await Log("");
 
                 using HttpClient client = new HttpClient();
@@ -10489,24 +10559,32 @@ private Border ModernOutputCard(string startText) =>
                 await Log("Online Version: " + latestVersion);
                 await Log("Quelle: " + manifest.Source);
                 await Log("Notes: " + notes);
+                RefreshUpdateVersionLabels(latestVersion);
                 await Log("");
 
                 if (string.IsNullOrWhiteSpace(latestVersion) || string.IsNullOrWhiteSpace(downloadUrl))
                 {
                     await Log("Fehler: version.json braucht version und downloadUrl.");
-                    RecordUpdateLog(CurrentAppVersion, latestVersion, notes, T("Fehler: version.json unvollständig", "Error: incomplete version.json"));
+                    RecordUpdateLog(GetDisplayAppVersion(), latestVersion, notes, T("Fehler: version.json unvollständig", "Error: incomplete version.json"));
                     return;
                 }
 
-                int compare = RedlineOnlineUpdate.CompareVersions(latestVersion, CurrentAppVersion);
+                if (!RedlineOnlineUpdate.IsOfficialDownloadUrl(downloadUrl))
+                {
+                    await Log(T("❌ Download-URL ist keine offizielle GitHub-Release-URL.", "❌ Download URL is not an official GitHub release URL."));
+                    await Log(downloadUrl);
+                    return;
+                }
+
+                int compare = RedlineOnlineUpdate.CompareVersions(latestVersion, GetDisplayAppVersion());
 
                 if (compare < 0)
                 {
-                    string msg = "✅ " + T("Neueste Version ist aktuell (V", "Latest version is current (V") + CurrentAppVersion + ").";
+                    string msg = "✅ " + T("Neueste Version ist aktuell (V", "Latest version is current (V") + GetDisplayAppVersion() + ").";
                     await Log(msg);
-                    RecordUpdateLog(CurrentAppVersion, latestVersion, notes, msg);
+                    RecordUpdateLog(GetDisplayAppVersion(), latestVersion, notes, msg);
                     await Log("");
-                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), CurrentAppVersion));
+                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), GetDisplayAppVersion()));
                     if (Progress != null)
                         Progress.Value = 100;
                     return;
@@ -10514,11 +10592,11 @@ private Border ModernOutputCard(string startText) =>
 
                 if (compare == 0)
                 {
-                    string msg = "✅ " + T("Neueste Version ist aktuell (V", "Latest version is current (V") + CurrentAppVersion + ").";
+                    string msg = "✅ " + T("Neueste Version ist aktuell (V", "Latest version is current (V") + GetDisplayAppVersion() + ").";
                     await Log(msg);
-                    RecordUpdateLog(CurrentAppVersion, latestVersion, notes, msg);
+                    RecordUpdateLog(GetDisplayAppVersion(), latestVersion, notes, msg);
                     await Log("");
-                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), CurrentAppVersion));
+                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), GetDisplayAppVersion()));
                     if (Progress != null)
                         Progress.Value = 100;
                     return;
@@ -10527,35 +10605,37 @@ private Border ModernOutputCard(string startText) =>
                 string avail = T("Update verfügbar: V", "Update available: V") + latestVersion;
                 await Log(avail);
                 await Log("Download: " + downloadUrl);
-                RecordUpdateLog(CurrentAppVersion, latestVersion, notes, avail);
+                RecordUpdateLog(GetDisplayAppVersion(), latestVersion, notes, avail);
 
                 if (!allowDownload)
                 {
                     await Log("");
-                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), CurrentAppVersion));
+                    await Log(RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), GetDisplayAppVersion()));
                     return;
                 }
 
-                if (autoInstall)
-                    await Log(T("Automatische Installation gestartet...", "Automatic installation started..."));
+                await Log(T("Offizielle Setup-EXE wird heruntergeladen…", "Downloading official setup EXE…"));
+                bool installed = await DownloadAndApplyUpdateAsync(client, latestVersion, downloadUrl);
 
-                bool installed = await DownloadAndApplyUpdateAsync(client, latestVersion, downloadUrl, autoInstall);
-
+                RefreshUpdateVersionLabels(latestVersion);
                 if (Progress != null)
                     Progress.Value = installed ? 100 : 70;
 
                 if (!installed)
                 {
                     await Log("");
-                    await Log(T("❌ Installation nicht gestartet – Setup liegt im Temp-Ordner (siehe Log oben).",
-                        "❌ Installation did not start – setup is in the temp folder (see log above)."));
-                    await Log(T("Tipp: „UPDATE AUTOMATISCH INSTALLIEREN“ erneut oder Setup-EXE manuell starten (Admin).",
-                        "Tip: run „INSTALL UPDATE AUTOMATICALLY“ again or start the setup EXE manually (admin)."));
+                    await Log(T("Installation nicht gestartet – Setup liegt im Temp-Ordner (siehe Log).",
+                        "Installation not started – setup is in the temp folder (see log)."));
+                }
+                else
+                {
+                    await Log(T("✅ Installer gestartet – nach Abschluss starte Redline neu für Live-Version.",
+                        "✅ Installer started – restart Redline after finish for live version."));
                 }
             });
         }
 
-        private async Task<bool> DownloadAndApplyUpdateAsync(HttpClient client, string version, string downloadUrl, bool autoInstall)
+        private async Task<bool> DownloadAndApplyUpdateAsync(HttpClient client, string version, string downloadUrl)
         {
             await Log("");
             await Log(T("Lade Update herunter...", "Downloading update..."));
@@ -10572,15 +10652,19 @@ private Border ModernOutputCard(string startText) =>
                 : "Redline_Gaming_Optimizer_Setup_v" + version + ".exe";
             string target = Path.Combine(tempDir, fileName);
 
-            byte[] data = await client.GetByteArrayAsync(downloadUrl);
-            await File.WriteAllBytesAsync(target, data);
+            long bytes = await DownloadOfficialFileWithProgressAsync(client, downloadUrl, target);
+            if (bytes <= 0)
+            {
+                await Log(T("❌ Download fehlgeschlagen.", "❌ Download failed."));
+                return false;
+            }
 
             if (Progress != null)
                 Progress.Value = 70;
 
-            await Log(T("Download fertig: ", "Download complete: ") + target);
-            await Log(T("Größe: ", "Size: ") + FormatSize(data.Length));
-            RecordUpdateLog(CurrentAppVersion, version, "", T("Download V", "Download V") + version + " " + T("abgeschlossen", "complete"));
+            await Log(T("✅ Download fertig (offizielle GitHub-EXE): ", "✅ Download complete (official GitHub EXE): ") + target);
+            await Log(T("Größe: ", "Size: ") + FormatSize(bytes));
+            RecordUpdateLog(GetDisplayAppVersion(), version, "", T("Download V", "Download V") + version + " " + T("abgeschlossen", "complete"));
             RedlineAppData.MarkPendingUpdateBanner(version);
 
             if (isZip)
@@ -10595,19 +10679,15 @@ private Border ModernOutputCard(string startText) =>
                 return await ApplyZipUpdateAsync(target, version);
             }
 
-            if (!autoInstall)
+            await Log("");
+            await Log(T("Frage: Jetzt installieren?", "Prompt: Install now?"));
+            if (!await PromptInstallUpdateAsync(version, target))
             {
-                MessageBoxResult start = MessageBox.Show(
-                    T("Update heruntergeladen.\n\nInstaller jetzt starten?", "Update downloaded.\n\nStart installer now?"),
-                    T("Redline Update", "Redline Update"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-                if (start != MessageBoxResult.Yes)
-                {
-                    await Log(T("Installation abgebrochen.", "Installation cancelled."));
-                    return false;
-                }
+                await Log(T("Installation abgebrochen (Nein). Setup gespeichert unter:", "Installation cancelled (No). Setup saved at:"));
+                await Log(target);
+                return false;
             }
+            await Log(T("Ja gewählt – starte offiziellen Installer…", "Yes selected – starting official installer…"));
 
             string installArgs = RedlineInstallHelper.BuildSilentInstallerArgs();
             if (RedlineInstallHelper.IsSetupInstalled())
@@ -11272,6 +11352,52 @@ private Border ModernOutputCard(string startText) =>
             if (bytes >= 1024L * 1024L) return Math.Round(bytes / 1024d / 1024d, 2) + " MB";
             if (bytes >= 1024L) return Math.Round(bytes / 1024d, 2) + " KB";
             return bytes + " B";
+        }
+
+        private async Task<long> DownloadOfficialFileWithProgressAsync(HttpClient client, string downloadUrl, string targetPath)
+        {
+            if (!RedlineOnlineUpdate.IsOfficialDownloadUrl(downloadUrl))
+                return 0;
+
+            try
+            {
+                using HttpResponseMessage response = await client.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
+                long? total = response.Content.Headers.ContentLength;
+                await using Stream net = await response.Content.ReadAsStreamAsync();
+                await using FileStream file = File.Create(targetPath);
+                byte[] buffer = new byte[81920];
+                long read = 0;
+                int lastLogged = -1;
+                while (true)
+                {
+                    int n = await net.ReadAsync(buffer);
+                    if (n <= 0)
+                        break;
+                    await file.WriteAsync(buffer.AsMemory(0, n));
+                    read += n;
+                    if (total is > 0)
+                    {
+                        int pct = (int)(read * 100 / total.Value);
+                        if (Progress != null)
+                            Progress.Value = 45 + pct * 0.25;
+                        if (pct >= lastLogged + 15 || pct >= 99)
+                        {
+                            lastLogged = pct;
+                            await Log(T("Download: ", "Download: ") + pct + "% (" + FormatSize(read) + ")");
+                        }
+                    }
+                    else if (read % (5 * 1024 * 1024) < buffer.Length)
+                        await Log(T("Download: ", "Download: ") + FormatSize(read) + " …");
+                }
+
+                return read;
+            }
+            catch (Exception ex)
+            {
+                await Log(T("Download-Fehler: ", "Download error: ") + ex.Message);
+                return 0;
+            }
         }
 
         private bool IsOutputBoxOnScreen()

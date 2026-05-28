@@ -17,30 +17,33 @@ namespace GamingBooster_Pro
 
     internal static class RedlineOnlineUpdate
     {
-        private static readonly string[] VersionJsonUrls =
+        private const string OfficialRepoPrefix = "https://github.com/LegendR622/Redline-Gaming-Optimizer/";
+        private const string OfficialVersionJson =
+            "https://raw.githubusercontent.com/LegendR622/Redline-Gaming-Optimizer/main/version.json";
+
+        public static bool IsOfficialDownloadUrl(string url)
         {
-            "https://raw.githubusercontent.com/LegendR622/Redline-Gaming-Optimizer/main/version.json",
-            "https://cdn.jsdelivr.net/gh/LegendR622/Redline-Gaming-Optimizer@main/version.json"
-        };
+            if (string.IsNullOrWhiteSpace(url))
+                return false;
+            return url.StartsWith(OfficialRepoPrefix, StringComparison.OrdinalIgnoreCase)
+                && url.Contains("/releases/download/", StringComparison.OrdinalIgnoreCase)
+                && url.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        }
 
         public static async Task<RedlineUpdateManifest?> FetchBestManifestAsync(HttpClient client, string installedVersion)
         {
             string cacheBust = "?t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             RedlineUpdateManifest? best = null;
 
-            // Releases-API zuerst – unabhängig von veraltetem jsDelivr-CDN
             RedlineUpdateManifest? release = await TryFetchGitHubLatestReleaseAsync(client);
-            if (release != null)
+            if (release != null && IsOfficialDownloadUrl(release.DownloadUrl))
                 best = release;
 
-            foreach (string baseUrl in VersionJsonUrls)
+            RedlineUpdateManifest? json = await TryFetchVersionJsonAsync(client, OfficialVersionJson + cacheBust, OfficialVersionJson);
+            if (json != null && IsOfficialDownloadUrl(json.DownloadUrl))
             {
-                RedlineUpdateManifest? m = await TryFetchVersionJsonAsync(client, baseUrl + cacheBust, baseUrl);
-                if (m == null)
-                    continue;
-
-                if (best == null || CompareVersions(m.Version, best.Version) > 0)
-                    best = m;
+                if (best == null || CompareVersions(json.Version, best.Version) > 0)
+                    best = json;
             }
 
             if (best == null)
