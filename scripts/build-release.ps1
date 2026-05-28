@@ -15,7 +15,8 @@ Write-Host "Publishing Redline V$Version ..." -ForegroundColor Cyan
 Get-Process -Name "GamingBooster_Pro" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 1
 
-dotnet publish $proj -c Release -r win-x64 --self-contained true -o $pubDir
+dotnet publish $proj -c Release -r win-x64 --self-contained true `
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $pubDir
 
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
