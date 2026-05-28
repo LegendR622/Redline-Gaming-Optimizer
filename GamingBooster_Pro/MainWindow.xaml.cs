@@ -98,7 +98,7 @@ namespace GamingBooster_Pro
         private Button? _cleanerCleanBtn;
         private TextBlock? _cleanerScanHint;
 
-        private const string CurrentAppVersion = "9.0";
+        private const string CurrentAppVersion = "9.1";
         private const string UpdateJsonUrl = "https://raw.githubusercontent.com/LegendR622/Redline-Gaming-Optimizer/main/version.json";
 
         private readonly RedlineTheme _theme = new RedlineTheme();
@@ -307,7 +307,7 @@ namespace GamingBooster_Pro
 
             p.Children.Add(new TextBlock
             {
-                Text = "V" + CurrentAppVersion + " · AI EDITION",
+                Text = "V" + CurrentAppVersion + " · UPDATE TEST",
                 Foreground = Red,
                 FontSize = 16,
                 FontWeight = FontWeights.SemiBold,
@@ -550,8 +550,8 @@ namespace GamingBooster_Pro
 
             TextBlock right = new TextBlock
             {
-                Text = "Made by Tobias Immisch  •  Redline V" + CurrentAppVersion + " Design",
-                Foreground = Muted,
+                Text = "Made by Tobias Immisch  •  Redline V" + CurrentAppVersion + "  •  Auto-Update OK",
+                Foreground = CurrentAppVersion.StartsWith("9.1") ? AiGreen : Muted,
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -2059,6 +2059,15 @@ namespace GamingBooster_Pro
             hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             StackPanel hdrLeft = new StackPanel();
             hdrLeft.Children.Add(new TextBlock { Text = "DASHBOARD", Foreground = TextPrimary, FontSize = 34, FontWeight = FontWeights.UltraBold });
+            hdrLeft.Children.Add(new TextBlock
+            {
+                Text = T("V9.1 – Update erfolgreich! Grüner Footer = neue Version aktiv.",
+                         "V9.1 – Update successful! Green footer = new version active."),
+                Foreground = AiGreen,
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 6, 0, 0)
+            });
             hdrLeft.Children.Add(new TextBlock
             {
                 Text = T("Übersicht über die Leistung, den Status und die Optimierung deines Systems.",
