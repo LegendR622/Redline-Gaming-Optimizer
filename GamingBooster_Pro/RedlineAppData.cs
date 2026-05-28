@@ -34,7 +34,7 @@ namespace GamingBooster_Pro
         public bool AiAssistantEnabled { get; set; } = true;
         public bool FastIntro { get; set; } = true;
         /// <summary>Beim App-Start automatisch auf GitHub prüfen und neues Update installieren.</summary>
-        public bool AutoUpdateOnStartup { get; set; } = true;
+        public bool AutoUpdateOnStartup { get; set; } = false;
         public string GraphicsMode { get; set; } = "FPS";
 
         public DateTime? LastScanUtc { get; set; }
@@ -365,7 +365,7 @@ namespace GamingBooster_Pro
             public string Theme { get; set; } = "Dark";
             public bool AiAssistantEnabled { get; set; } = true;
             public bool FastIntro { get; set; } = true;
-            public bool AutoUpdateOnStartup { get; set; } = true;
+            public bool AutoUpdateOnStartup { get; set; } = false;
             public string GraphicsMode { get; set; } = "FPS";
             public DateTime? LastScanUtc { get; set; }
             public int? GamingScore { get; set; }

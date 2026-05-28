@@ -104,9 +104,10 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.27";
+        private const string CurrentAppVersion = "9.28";
         private TextBlock? _updateInstalledVersionLabel;
         private TextBlock? _updateOnlineVersionLabel;
+        private TextBlock? _updateAutoStartHint;
         private TextBlock? _driverActivityText;
         private ProgressBar? _driverActivityBar;
         private TextBlock? _updateActivityText;
@@ -268,8 +269,48 @@ namespace GamingBooster_Pro
                 return;
 
             _startupAutoUpdateStarted = true;
-            await Task.Delay(2000);
-            await CheckForUpdatesAsync(allowDownload: true, startupAuto: true);
+            await Task.Delay(2500);
+            await RunStartupUpdateFlowAsync();
+        }
+
+        private async Task RunStartupUpdateFlowAsync()
+        {
+            try
+            {
+                using HttpClient client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(60);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineGamingOptimizer/" + CurrentAppVersion);
+                client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
+
+                RedlineUpdateManifest? manifest = await RedlineOnlineUpdate.FetchBestManifestAsync(client, CurrentAppVersion);
+                if (manifest == null
+                    || string.IsNullOrWhiteSpace(manifest.Version)
+                    || string.IsNullOrWhiteSpace(manifest.DownloadUrl)
+                    || !RedlineOnlineUpdate.IsOfficialDownloadUrl(manifest.DownloadUrl))
+                    return;
+
+                if (RedlineOnlineUpdate.CompareVersions(manifest.Version, GetDisplayAppVersion()) <= 0)
+                    return;
+
+                MessageBoxResult wantDownload = await Dispatcher.InvokeAsync(() => MessageBox.Show(
+                    T("Redline V", "Redline V") + manifest.Version + T(" ist verfügbar.\n\nJetzt von GitHub herunterladen?\n\nDie Installation startet erst nach deiner Bestätigung (Ja/Nein).",
+                      " is available.\n\nDownload from GitHub now?\n\nInstallation only starts after you confirm (Yes/No)."),
+                    T("Update beim Start", "Update on startup"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Information));
+
+                if (wantDownload != MessageBoxResult.Yes)
+                {
+                    RedlineAppData.MarkPendingUpdateBanner(manifest.Version);
+                    return;
+                }
+
+                await DownloadAndApplyUpdateAsync(client, manifest.Version, manifest.DownloadUrl);
+            }
+            catch
+            {
+                // still start app normally
+            }
         }
 
         private string GetDisplayAppVersion()
@@ -949,7 +990,7 @@ namespace GamingBooster_Pro
 
             TextBlock right = new TextBlock
             {
-                Text = "Made by Tobias Immisch  •  Redline V" + CurrentAppVersion + "  •  Auto-Update OK",
+                Text = "Made by Tobias Immisch  •  Redline V" + CurrentAppVersion,
                 Foreground = Muted,
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center
@@ -5285,8 +5326,8 @@ namespace GamingBooster_Pro
             });
             heroP.Children.Add(new TextBlock
             {
-                Text = T("Download nur von GitHub. Nach dem Download: Ja/Nein vor Installation.",
-                  "Download from GitHub only. After download: Yes/No before install."),
+                Text = T("Nur offizielle GitHub-EXE. Installation nie automatisch — immer Ja/Nein.",
+                  "Official GitHub EXE only. Never auto-install — always Yes/No."),
                 Foreground = Muted,
                 FontSize = 13,
                 TextWrapping = TextWrapping.Wrap
@@ -5313,19 +5354,51 @@ namespace GamingBooster_Pro
                 Text = T("Online: wird geprüft…", "Online: checking…"),
                 Foreground = AiGreen,
                 FontSize = 15,
-                Margin = new Thickness(0, 0, 0, 14)
+                Margin = new Thickness(0, 0, 0, 12)
             };
             p.Children.Add(_updateOnlineVersionLabel);
-            p.Children.Add(InfoLine(T("Auto-Update beim Start: ", "Auto-update on start: ")
-                + (RedlineAppData.Current.AutoUpdateOnStartup ? T("AN · mit Ja/Nein", "ON · with Yes/No") : T("AUS", "OFF"))));
-            p.Children.Add(InfoLine("github.com/LegendR622/Redline-Gaming-Optimizer"));
 
-            Button autoUpdate = RedButton("⬇  " + T("UPDATE PRÜFEN & INSTALLIEREN", "CHECK & INSTALL UPDATE"), UpdateAutoInstall_Click);
-            autoUpdate.Height = 48;
-            autoUpdate.Margin = new Thickness(0, 18, 0, 0);
-            p.Children.Add(autoUpdate);
+            Border autoRow = new Border
+            {
+                Background = SubCardBg,
+                BorderBrush = Border,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(14),
+                Margin = new Thickness(0, 0, 0, 14)
+            };
+            StackPanel autoP = new StackPanel();
+            autoP.Children.Add(new TextBlock
+            {
+                Text = T("Auto-Update beim Start", "Auto-update on startup"),
+                Foreground = Brushes.White,
+                FontSize = 14,
+                FontWeight = FontWeights.Bold
+            });
+            _updateAutoStartHint = new TextBlock
+            {
+                Text = T("Aus — du entscheidest selbst. Wenn an: nur Download-Hinweis, Installation mit Ja/Nein.",
+                  "Off — you decide. When on: download prompt only, install with Yes/No."),
+                Foreground = Muted,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 6, 0, 10)
+            };
+            autoP.Children.Add(_updateAutoStartHint);
+            ToggleButton autoToggle = DashboardToggle(RedlineAppData.Current.AutoUpdateOnStartup);
+            autoToggle.IsChecked = RedlineAppData.Current.AutoUpdateOnStartup;
+            autoToggle.Checked += (_, _) => SetAutoUpdateOnStartup(true);
+            autoToggle.Unchecked += (_, _) => SetAutoUpdateOnStartup(false);
+            autoP.Children.Add(autoToggle);
+            autoRow.Child = autoP;
+            p.Children.Add(autoRow);
 
-            Button check = OutlineButton(T("Nur prüfen", "Check only"), UpdateCheck_Click);
+            Button downloadBtn = RedButton("⬇  " + T("UPDATE HERUNTERLADEN", "DOWNLOAD UPDATE"), UpdateDownload_Click);
+            downloadBtn.Height = 48;
+            downloadBtn.Margin = new Thickness(0, 4, 0, 0);
+            p.Children.Add(downloadBtn);
+
+            Button check = OutlineButton(T("Nur Version prüfen", "Check version only"), UpdateCheck_Click);
             check.Height = 40;
             check.Margin = new Thickness(0, 10, 0, 0);
             p.Children.Add(check);
@@ -5483,6 +5556,15 @@ namespace GamingBooster_Pro
             notify.Checked += (s, e) => { NotificationsEnabled = true; PersistSettings(); };
             notify.Unchecked += (s, e) => { NotificationsEnabled = false; PersistSettings(); };
             p.Children.Add(SettingsRow("🔔", T("Benachrichtigungen", "Notifications"), T("Verwalte Benachrichtigungen und Hinweise.", "Manage notifications and hints."), notify));
+
+            ToggleButton autoUp = DashboardToggle(RedlineAppData.Current.AutoUpdateOnStartup);
+            autoUp.IsChecked = RedlineAppData.Current.AutoUpdateOnStartup;
+            autoUp.Checked += (_, _) => SetAutoUpdateOnStartup(true);
+            autoUp.Unchecked += (_, _) => SetAutoUpdateOnStartup(false);
+            p.Children.Add(SettingsRow("⬆", T("Update beim Start", "Update on startup"),
+                T("Aus = du prüfst selbst unter Update. An = Hinweis + Download, Installation nur mit Ja/Nein.",
+                  "Off = check manually under Update. On = prompt + download, install only with Yes/No."),
+                autoUp));
 
             Button dark = SegmentButton(T("Dunkel ★", "Dark ★"), !IsLightTheme, () => { ApplyThemeMode("Dark"); });
             Button light = SegmentButton(T("Hell", "Light"), IsLightTheme, () => { ApplyThemeMode("Light"); });
@@ -10870,7 +10952,8 @@ private Border StatusCard(string title, string value, Brush color)
 
         private string GetUpdatePageStartupLog()
         {
-            return RedlineUpdateLog.FormatSimpleStatus(IsEnglish(), GetDisplayAppVersion());
+            return T("Bereit — nur offizielle GitHub-Updates, keine automatische Installation.",
+                "Ready — official GitHub updates only, no automatic install.");
         }
 
         private static void RecordUpdateLog(string installed, string online, string notes, string result)
@@ -10884,7 +10967,21 @@ private Border StatusCard(string title, string value, Brush color)
             await CheckForUpdatesAsync(allowDownload: false, startupAuto: false);
         }
 
-        private async void UpdateAutoInstall_Click(object sender, RoutedEventArgs e)
+        private void SetAutoUpdateOnStartup(bool enabled)
+        {
+            RedlineAppData.Current.AutoUpdateOnStartup = enabled;
+            PersistSettings();
+            if (_updateAutoStartHint != null)
+            {
+                _updateAutoStartHint.Text = enabled
+                    ? T("An — beim Start: Update-Hinweis, Download nach Bestätigung, Installation mit Ja/Nein.",
+                        "On — on start: update prompt, download after confirm, install with Yes/No.")
+                    : T("Aus — du entscheidest selbst. Wenn an: nur Download-Hinweis, Installation mit Ja/Nein.",
+                        "Off — you decide. When on: download prompt only, install with Yes/No.");
+            }
+        }
+
+        private async void UpdateDownload_Click(object sender, RoutedEventArgs e)
         {
             SetUpdateActivity(T("Prüfe und lade bei Bedarf…", "Checking and downloading if needed…"), 10);
             await CheckForUpdatesAsync(allowDownload: true, startupAuto: false);
@@ -11018,8 +11115,7 @@ private Border StatusCard(string title, string value, Brush color)
             {
                 if (RedlineInstallHelper.IsSetupInstalled())
                 {
-                    await Log(T("❌ ZIP-Update nicht für installierte Redline-Version. Bitte Setup-EXE von GitHub verwenden.",
-                        "❌ ZIP update cannot replace an installed Redline. Use the Setup EXE from GitHub."));
+                    SetUpdateActivity(T("Bitte Setup-EXE von GitHub verwenden.", "Please use the Setup EXE from GitHub."), null);
                     return false;
                 }
 
@@ -11039,7 +11135,7 @@ private Border StatusCard(string title, string value, Brush color)
 
             if (!RedlineInstallHelper.TryLaunchInstaller(target, installArgs, out string? startError))
             {
-                await Log(T("❌ Installer konnte nicht gestartet werden: ", "❌ Could not start installer: ") + startError);
+                SetUpdateActivity(T("Installer konnte nicht starten.", "Installer could not start."), null);
                 MessageBox.Show(
                     T("Update wurde heruntergeladen, aber der Installer startete nicht.\n\n",
                       "Update was downloaded but the installer did not start.\n\n")
@@ -11050,8 +11146,7 @@ private Border StatusCard(string title, string value, Brush color)
                 return false;
             }
 
-            await Log(T("Installer läuft – Redline schließt in Kürze (alte EXE wird ersetzt).",
-                "Installer running – Redline will close shortly (old EXE will be replaced)."));
+            SetUpdateActivity(T("Installer läuft — Redline schließt sich.", "Installer running — Redline will close."), 100);
             await Task.Delay(3500);
             Application.Current.Shutdown();
             return true;
@@ -11718,14 +11813,15 @@ private Border StatusCard(string title, string value, Brush color)
                         int pct = (int)(read * 100 / total.Value);
                         if (Progress != null)
                             Progress.Value = 45 + pct * 0.25;
-                        if (pct >= lastLogged + 15 || pct >= 99)
+                        if (pct >= lastLogged + 12 || pct >= 99)
                         {
                             lastLogged = pct;
-                            await Log(T("Download: ", "Download: ") + pct + "% (" + FormatSize(read) + ")");
+                            int bar = 55 + (int)(pct * 0.2);
+                            SetUpdateActivity(T("Download: ", "Download: ") + pct + "% · " + FormatSize(read), bar);
                         }
                     }
                     else if (read % (5 * 1024 * 1024) < buffer.Length)
-                        await Log(T("Download: ", "Download: ") + FormatSize(read) + " …");
+                        SetUpdateActivity(T("Download: ", "Download: ") + FormatSize(read) + " …", null);
                 }
 
                 return read;
