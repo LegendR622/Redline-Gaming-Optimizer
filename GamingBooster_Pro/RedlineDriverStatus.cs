@@ -170,7 +170,7 @@ namespace GamingBooster_Pro
                 return "UPDATE EMPFOHLEN";
 
             if (!string.IsNullOrWhiteSpace(wuTitle))
-                return "UPDATE EMPFOHLEN";
+                return "WU VERFÜGBAR";
 
             if (d.Provider.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) && IsMicrosoftSystemDriver(d))
                 return "SYSTEM";
@@ -191,16 +191,15 @@ namespace GamingBooster_Pro
                 return "UPDATE EMPFOHLEN";
             }
 
-            if (chipset || network)
+            if (chipset || network || all.Contains("gpio") || all.Contains("bluetooth"))
             {
                 if (days <= 730) return "AKTUELL";
-                if (days <= 1095) return "PRÜFEN";
-                return "UPDATE EMPFOHLEN";
+                return "PRÜFEN";
             }
 
             if (days <= 730) return "AKTUELL";
             if (days <= 1460) return "PRÜFEN";
-            return "UPDATE EMPFOHLEN";
+            return "PRÜFEN";
         }
 
         private static string BuildDetail(DriverDisplayItem d)
@@ -224,6 +223,7 @@ namespace GamingBooster_Pro
             return d.Status switch
             {
                 "UPDATE EMPFOHLEN" => 100,
+                "WU VERFÜGBAR" => 95,
                 "AKTUALISIERT" => 90,
                 "PRÜFEN" => 50,
                 "AKTUELL" => 10,

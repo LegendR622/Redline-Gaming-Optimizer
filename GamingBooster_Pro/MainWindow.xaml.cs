@@ -103,7 +103,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.18";
+        private const string CurrentAppVersion = "9.19";
 
         private bool _startupAutoUpdateStarted;
         private string? _pendingUpdateBannerVersion;
@@ -167,6 +167,7 @@ namespace GamingBooster_Pro
             "AKTUALISIERT" => T("AKTUALISIERT", "UPDATED"),
             "PRÜFEN" => T("PRÜFEN", "CHECK"),
             "UPDATE EMPFOHLEN" => T("UPDATE EMPFOHLEN", "UPDATE RECOMMENDED"),
+            "WU VERFÜGBAR" => T("WU VERFÜGBAR", "WU AVAILABLE"),
             "SYSTEM" => T("SYSTEM", "SYSTEM"),
             _ => status
         };
@@ -3994,7 +3995,7 @@ namespace GamingBooster_Pro
             {
                 DriverStatusToUi(d.Status, out string risk, out Brush riskColor);
                 string device = d.DeviceName;
-                bool canUpdate = d.Status is "UPDATE EMPFOHLEN" or "PRÜFEN";
+                bool canUpdate = d.Status is "UPDATE EMPFOHLEN" or "WU VERFÜGBAR" or "PRÜFEN";
                 RoutedEventHandler action = d.Status == "SYSTEM"
                     ? DriverScan_Click
                     : canUpdate
@@ -4004,6 +4005,7 @@ namespace GamingBooster_Pro
                 string btn = d.Status switch
                 {
                     "UPDATE EMPFOHLEN" => T("UPDATE", "UPDATE"),
+                    "WU VERFÜGBAR" => T("INSTALL", "INSTALL"),
                     "PRÜFEN" => T("PRÜFEN", "CHECK"),
                     "AKTUALISIERT" => T("OK", "OK"),
                     "AKTUELL" => T("OK", "OK"),
@@ -4108,6 +4110,7 @@ namespace GamingBooster_Pro
                     color = AiOrange;
                     break;
                 case "UPDATE EMPFOHLEN":
+                case "WU VERFÜGBAR":
                     risk = T("Hoch", "High");
                     color = Red;
                     break;
@@ -5351,7 +5354,11 @@ namespace GamingBooster_Pro
             {
                 await Log("===== " + T("IN-APP TREIBER-UPDATE", "IN-APP DRIVER UPDATE") + " =====");
                 if (!IsAdmin())
-                    await Log(T("Hinweis: Für Installation als Administrator starten.", "Note: Run as administrator for installation."));
+                    await Log(T("⚠ Nicht als Admin – Windows-Installation kann fehlschlagen. Rechtsklick → Als Administrator ausführen.",
+                        "⚠ Not running as admin – Windows install may fail. Right-click → Run as administrator."));
+                else
+                    await Log(T("✅ Admin-Rechte OK – echte Installation über Windows Update möglich.",
+                        "✅ Admin rights OK – real install via Windows Update possible."));
 
                 if (!installOnly)
                 {
