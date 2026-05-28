@@ -24,6 +24,7 @@ namespace GamingBooster_Pro
             TestLicenseKeys();
             TestRecommendedCategories();
             TestPerfTileRouting();
+            TestFeatureGate();
             TestHardwareDriverLinks();
             TestVersionCompare();
             TestVersionJsonLocal();
@@ -110,6 +111,14 @@ namespace GamingBooster_Pro
                 RedlinePerfNavigation.ExpectedDryRunToken(PerfDetailAction.GameModeSettings) == "uri:ms-settings:gaming-gamemode");
         }
 
+        private static void TestFeatureGate()
+        {
+            bool dev = RedlineDevAuth.IsAuthorizedDeveloperMachine();
+            Assert("InApp-Treiber nur Entwickler-PC", RedlineFeatureGate.InAppDriverUpdateEnabled == dev,
+                dev ? "Entwickler-PC" : "Nutzer-PC");
+            Assert("Perf GAME MODE Route", RedlinePerfNavigation.Resolve("GAME MODE") == PerfDetailAction.GameModeSettings);
+        }
+
         private static void TestHardwareDriverLinks()
         {
             HardwareProfile hp = new HardwareProfile
@@ -144,9 +153,9 @@ namespace GamingBooster_Pro
 
         private static void TestVersionCompare()
         {
-            Assert("9.9 > 9.8", CompareVer("9.9", "9.8") > 0);
-            Assert("9.8 < 9.9", CompareVer("9.8", "9.9") < 0);
-            Assert("9.9 == 9.9", CompareVer("9.9", "9.9") == 0);
+            Assert("9.10 > 9.9", CompareVer("9.10", "9.9") > 0);
+            Assert("9.9 < 9.10", CompareVer("9.9", "9.10") < 0);
+            Assert("9.10 == 9.10", CompareVer("9.10", "9.10") == 0);
         }
 
         private static int CompareVer(string online, string current)
@@ -189,13 +198,13 @@ namespace GamingBooster_Pro
 
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
             string ver = doc.RootElement.GetProperty("version").GetString() ?? "";
-            Assert("version.json Version 9.9", ver == "9.9", "v" + ver);
+            Assert("version.json Version 9.10", ver == "9.10", "v" + ver);
             Assert("version.json downloadUrl", doc.RootElement.TryGetProperty("downloadUrl", out _));
         }
 
         private static void TestUpdateLogRoundtrip()
         {
-            RedlineUpdateLog.Add("9.9-test", "9.9", "selftest", "OK selftest");
+            RedlineUpdateLog.Add("9.10-test", "9.10", "selftest", "OK selftest");
             var all = RedlineUpdateLog.LoadAll();
             Assert("Update-Log Eintrag", all.Any(e => e.Result.Contains("selftest", StringComparison.OrdinalIgnoreCase)));
         }
@@ -243,7 +252,7 @@ namespace GamingBooster_Pro
             try
             {
                 using HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineSelfTest/9.9");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("RedlineSelfTest/9.10");
                 string json = await client.GetStringAsync(url).ConfigureAwait(false);
                 if (!json.TrimStart().StartsWith("{", StringComparison.Ordinal))
                 {

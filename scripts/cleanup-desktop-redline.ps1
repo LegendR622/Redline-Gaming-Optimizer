@@ -17,6 +17,15 @@ Get-ChildItem $desktop -Filter "*.mp4" -File -EA SilentlyContinue |
     Where-Object { $_.Name -match 'REDLINE|Redline|GamingBooster|Intro|Promo' } |
     Remove-Item -Force
 
+Get-ChildItem $desktop -Filter "*.exe" -File -EA SilentlyContinue |
+    Where-Object {
+        $_.Name -match '^Redline V\d|^Redline_Gaming|^GamingBooster' -and
+        $_.Name -ne 'Redline Gaming Optimizer.exe'
+    } | ForEach-Object {
+    Remove-Item $_.FullName -Force
+    Write-Host "Geloescht: $($_.Name)"
+}
+
 $df = Join-Path $desktop "GamingBooster_Pro"
 $repoCsproj = Join-Path $df "GamingBooster_Pro\GamingBooster_Pro.csproj"
 if ((Test-Path $df) -and -not (Test-Path $repoCsproj)) {

@@ -103,7 +103,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.9";
+        private const string CurrentAppVersion = "9.10";
 
         private static readonly string[] CleanerRecommendedCategories =
         {
@@ -293,6 +293,19 @@ namespace GamingBooster_Pro
             {
                 failures.Add("Performance: " + ex.Message);
                 log.Add("[FAIL] Performance | " + ex.Message);
+            }
+
+            try
+            {
+                await Dispatcher.InvokeAsync(() => Navigate("Drivers"));
+                await Task.Delay(450);
+                log.Add("[OK] Drivers In-App=" + RedlineFeatureGate.InAppDriverUpdateEnabled
+                    + " DevPC=" + RedlineDevAuth.IsAuthorizedDeveloperMachine());
+            }
+            catch (Exception ex)
+            {
+                failures.Add("Drivers: " + ex.Message);
+                log.Add("[FAIL] Drivers | " + ex.Message);
             }
 
             string[] pages =
@@ -666,6 +679,21 @@ namespace GamingBooster_Pro
                 or "Network" or "Drivers" or "Repair" or "Settings" or "Startup" or "Update";
 
         private bool IsProActive() => RedlineAppData.Current.IsProActive;
+
+        private bool TryInAppDriverFeature()
+        {
+            if (RedlineFeatureGate.InAppDriverUpdateEnabled)
+                return true;
+
+            MessageBox.Show(
+                T(
+                    "In-App Treiber-Update und Installation kommen bald für alle Nutzer (Free-Version).\n\nDie Funktion wird gerade auf dem Entwickler-PC getestet und danach für alle freigeschaltet.",
+                    "In-app driver update and install are coming soon for all users (free version).\n\nWe are testing on the developer PC first, then enabling it for everyone."),
+                T("Bald verfügbar", "Coming soon"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return false;
+        }
 
         private bool RequirePro(string featureName)
         {
@@ -1322,7 +1350,7 @@ namespace GamingBooster_Pro
                 "Leistung" => T("Zeigt Hardware, Laufwerke, Netzwerkadapter und RAM-lastige Prozesse.", "Shows hardware, drives, adapters and RAM-heavy processes."),
                 "Startup" => T("Zeigt Autostarts und kann ausgewählte Einträge mit Backup deaktivieren.", "Lists startup items and can disable selected entries with backup."),
                 "Security" => T("Prüft Defender, Firewall, Hosts-Datei, auffällige Prozesse und kann Offline Scan planen.", "Checks Defender, firewall, hosts file, suspicious processes; offline scan."),
-                "Drivers" => T("Erkennt GPU, CPU, Mainboard und öffnet passende offizielle Treiber-Updates.", "Detects GPU, CPU, motherboard and opens matching official driver updates."),
+                "Drivers" => T("Erkennt GPU, CPU, Mainboard. In-App-Update auf Entwickler-PC; sonst Bald verfügbar.", "Detects GPU, CPU, motherboard. In-app update on developer PC; coming soon for others."),
                 "Bios" => T("Liest BIOS/UEFI, Secure Boot, TPM und Virtualization aus Windows aus.", "Reads BIOS/UEFI, Secure Boot, TPM and virtualization from Windows."),
                 "Network" => T("Ping, DNS, Adapter, IPConfig, Speed Test und Winsock Reset.", "Ping, DNS, adapters, IP config, speed test and Winsock reset."),
                 "Repair" => T("Windows-Reparaturtools wie SFC, DISM, Store Reset und Zuverlässigkeitsverlauf.", "Windows repair: SFC, DISM, store reset and reliability history."),
@@ -4011,6 +4039,62 @@ namespace GamingBooster_Pro
             vendors.Margin = new Thickness(0, 0, 18, 0);
             vendors.Padding = new Thickness(16);
             StackPanel vp = new StackPanel();
+            Border inAppCard = DashboardCard();
+            inAppCard.Margin = new Thickness(0, 0, 0, 14);
+            inAppCard.Padding = new Thickness(16);
+            StackPanel inAppP = new StackPanel();
+            inAppP.Children.Add(new TextBlock
+            {
+                Text = T("IN-APP TREIBER-UPDATE", "IN-APP DRIVER UPDATE"),
+                Foreground = Brushes.White,
+                FontSize = 15,
+                FontWeight = FontWeights.UltraBold,
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            inAppP.Children.Add(new TextBlock
+            {
+                Text = RedlineFeatureGate.InAppDriverUpdateEnabled
+                    ? T("Sucht und installiert Treiber direkt in Redline (Windows Update + winget). Admin empfohlen.",
+                        "Searches and installs drivers inside Redline (Windows Update + winget). Admin recommended.")
+                    : T("Bald verfügbar · Coming Soon – wird für alle Nutzer in der Free-Version freigeschaltet.",
+                        "Coming soon – will be unlocked for all users in the free version."),
+                Foreground = Muted,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+            StackPanel inAppBtns = new StackPanel { Orientation = Orientation.Horizontal };
+            if (RedlineFeatureGate.InAppDriverUpdateEnabled)
+            {
+                Button autoInApp = RedButton("🔄  " + T("AUTO UPDATE", "AUTO UPDATE"), DriversInAppAutoUpdate_Click);
+                autoInApp.Width = 200;
+                autoInApp.Height = 44;
+                inAppBtns.Children.Add(autoInApp);
+                Button installBtn = OutlineButton("⬇  " + T("INSTALLIEREN", "INSTALL"), DriversInstallUpdates_Click);
+                installBtn.Width = 180;
+                installBtn.Height = 44;
+                installBtn.Margin = new Thickness(10, 0, 0, 0);
+                inAppBtns.Children.Add(installBtn);
+                Button cancelBtn = OutlineButton(T("ABBRECHEN", "CANCEL"), DriversCancelUpdate_Click);
+                cancelBtn.Width = 130;
+                cancelBtn.Height = 44;
+                cancelBtn.Margin = new Thickness(10, 0, 0, 0);
+                cancelBtn.Foreground = AiOrange;
+                inAppBtns.Children.Add(cancelBtn);
+            }
+            else
+            {
+                Button soon = OutlineButton(T("BALD VERFÜGBAR · COMING SOON", "COMING SOON"), (s, e) => TryInAppDriverFeature());
+                soon.Width = 320;
+                soon.Height = 44;
+                soon.IsEnabled = true;
+                soon.Opacity = 0.75;
+                inAppBtns.Children.Add(soon);
+            }
+            inAppP.Children.Add(inAppBtns);
+            inAppCard.Child = inAppP;
+            vp.Children.Add(inAppCard);
+
             vp.Children.Add(new TextBlock { Text = T("OFFIZIELLE UPDATE-QUELLEN", "OFFICIAL UPDATE SOURCES"), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.UltraBold, Margin = new Thickness(0, 0, 0, 12) });
             WrapPanel tiles = new WrapPanel();
             tiles.Children.Add(ModernTile("Windows Update", T("Windows Update öffnen", "Open Windows Update"), "WU", Red, (s, e) => OpenUri("ms-settings:windowsupdate")));
@@ -4019,9 +4103,23 @@ namespace GamingBooster_Pro
             tiles.Children.Add(ModernTile("Intel", T("Intel Support", "Intel support"), "IN", CardBg2, (s, e) => OpenUri("https://www.intel.com/content/www/us/en/support/detect.html")));
             tiles.Children.Add(ModernTile("Realtek", T("Realtek Audio/LAN", "Realtek audio/LAN"), "RT", CardBg2, (s, e) => OpenUri("https://www.realtek.com/Download/List?cate_id=584")));
             tiles.Children.Add(ModernTile(T("Report", "Report"), T("Treiber-Report speichern", "Save driver report"), "TXT", AiPurple, DriverReport_Click));
-            tiles.Children.Add(ModernTile(T("AUTO UPDATE", "AUTO UPDATE"),
-                T("Scannt GPU, CPU, Mainboard – öffnet passende Update-Seiten", "Scans GPU, CPU, motherboard – opens matching update pages"),
-                "AUTO", Red, DriversAutoUpdatePro_Click));
+
+            if (RedlineFeatureGate.InAppDriverUpdateEnabled)
+            {
+                tiles.Children.Add(ModernTile(T("AUTO UPDATE", "AUTO UPDATE"),
+                    T("In-App: Scan + Windows Update + winget", "In-app: scan + Windows Update + winget"),
+                    "AUTO", Red, DriversInAppAutoUpdate_Click));
+                tiles.Children.Add(ModernTile(T("INSTALLIEREN", "INSTALL"),
+                    T("Gefundene Windows-Treiber installieren", "Install found Windows drivers"),
+                    "⬇", AiGreen, DriversInstallUpdates_Click));
+            }
+            else
+            {
+                tiles.Children.Add(ModernTileComingSoon(T("AUTO UPDATE", "AUTO UPDATE"),
+                    T("In-App Treiber-Update", "In-app driver update"), "AUTO", Red));
+                tiles.Children.Add(ModernTileComingSoon(T("INSTALLIEREN", "INSTALL"),
+                    T("Treiber direkt installieren", "Install drivers in-app"), "⬇", AiGreen));
+            }
             vp.Children.Add(tiles);
             vendors.Child = vp;
             left.Children.Add(vendors);
@@ -4981,11 +5079,47 @@ namespace GamingBooster_Pro
             });
         }
 
-        private async void DriversAutoUpdatePro_Click(object sender, RoutedEventArgs e)
+        private async void DriversInAppAutoUpdate_Click(object sender, RoutedEventArgs e)
         {
-            if (!RequirePro(T("Automatische Treiber-Updates", "Automatic driver updates"))) return;
+            if (!TryInAppDriverFeature()) return;
             PrepareActionOutput();
-            await RunSmartDriverAutoUpdateAsync();
+            await RunInAppDriverUpdateAsync(searchAndInstall: true);
+        }
+
+        private async void DriversInstallUpdates_Click(object sender, RoutedEventArgs e)
+        {
+            if (!TryInAppDriverFeature()) return;
+            PrepareActionOutput();
+            await RunInAppDriverUpdateAsync(searchAndInstall: false, installOnly: true);
+        }
+
+        private void DriversCancelUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            RedlineDriverUpdateService.Instance.Cancel();
+            _ = Log(T("Treiber-Update wird abgebrochen…", "Cancelling driver update…"));
+        }
+
+        private async Task RunInAppDriverUpdateAsync(bool searchAndInstall, bool installOnly = false)
+        {
+            await SafeRun(T("In-App Treiber-Update", "In-app driver update"), async () =>
+            {
+                await Log("===== " + T("IN-APP TREIBER-UPDATE", "IN-APP DRIVER UPDATE") + " =====");
+                if (!IsAdmin())
+                    await Log(T("Hinweis: Für Installation als Administrator starten.", "Note: Run as administrator for installation."));
+
+                if (!installOnly)
+                {
+                    await Log(T("Hardware-Scan…", "Hardware scan…"));
+                    await RunDriverScanCoreAsync();
+                }
+
+                bool en = IsEnglish();
+                await RedlineDriverUpdateService.Instance.RunAsync(
+                    installAfterSearch: searchAndInstall,
+                    installOnly: installOnly,
+                    log: async msg => await Log(msg),
+                    isEnglish: en);
+            });
         }
 
         private string GetMotherboardLabel()
@@ -5485,6 +5619,16 @@ private Border StatusCard(string title, string value, Brush color)
         }
 
 
+
+        private Button ModernTileComingSoon(string title, string sub, string icon, Brush accent)
+        {
+            string subSoon = sub + " · " + T("Bald verfügbar", "Coming soon");
+            Button btn = ModernTile(title, subSoon, icon, accent, (s, e) => TryInAppDriverFeature());
+            btn.Opacity = 0.52;
+            btn.Cursor = System.Windows.Input.Cursors.Arrow;
+            btn.ToolTip = T("Bald verfügbar · Coming Soon", "Coming soon");
+            return btn;
+        }
 
         private Button ModernTile(string title, string sub, string icon, Brush accent, RoutedEventHandler handler)
         {

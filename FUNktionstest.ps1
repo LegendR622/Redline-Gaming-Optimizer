@@ -33,7 +33,7 @@ function Stop-RedlineApp {
 Write-Host ""
 Stop-RedlineApp
 
-Write-Host "=== Redline Vollständiger Funktionstest V9.9 ===" -ForegroundColor Cyan
+Write-Host "=== Redline Vollständiger Funktionstest V9.10 ===" -ForegroundColor Cyan
 Write-Host "Logik-Läufe: $LogicRuns | UI-Läufe: $UiRuns | Cleaner-Scan: $WithCleanerScan"
 Write-Host ""
 
@@ -74,7 +74,7 @@ Add-Result "Test-EXE" (Test-Path $exe) $exe
 $verFile = Join-Path $root "version.json"
 if (Test-Path $verFile) {
     $vj = Get-Content $verFile -Raw | ConvertFrom-Json
-    Add-Result "version.json Version" ($vj.version -eq "9.9") ("v$($vj.version)")
+    Add-Result "version.json Version" ($vj.version -eq "9.10") ("v$($vj.version)")
     Add-Result "version.json downloadUrl" ($null -ne $vj.downloadUrl) $vj.downloadUrl
 } else {
     Add-Result "version.json" $false "fehlt"

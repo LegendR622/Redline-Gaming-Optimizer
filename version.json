@@ -1,6 +1,6 @@
 ﻿{
     "packageType":  "zip",
-    "version":  "9.9",
-    "downloadUrl":  "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.9/Redline_V9.9_win-x64.zip",
-    "notes": "V9.9: Performance-Pfeile korrekt (Einstellungen/Navigation), automatische Volltests, UI polish V9.8."
+    "version":  "9.10",
+    "downloadUrl":  "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.10/Redline_V9.10_win-x64.zip",
+    "notes": "V9.10: In-App Treiber-Update/Install (Entwickler-PC), Coming Soon für andere, Abbrechen, DE/EN."
 }
