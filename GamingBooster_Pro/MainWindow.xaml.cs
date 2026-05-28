@@ -170,6 +170,9 @@ namespace GamingBooster_Pro
             Background = Bg;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             SizeChanged += MainWindow_SizeChanged;
+            RedlineUi.ApplyCrispText(this);
+            UseLayoutRounding = true;
+            SnapsToDevicePixels = true;
 
             if (Application.Current != null)
                 Application.Current.DispatcherUnhandledException += MainWindow_DispatcherUnhandledException;
@@ -711,7 +714,8 @@ namespace GamingBooster_Pro
             panel.Children.Add(NavButton("⬆   " + T("Update", "Update"), "Update"));
             panel.Children.Add(NavButton("⚙   " + T("Settings", "Settings"), "Settings"));
 
-            root.Children.Add(panel);
+            ScrollViewer navScroll = RedlineUi.CreateSidebarScrollViewer(panel);
+            root.Children.Add(navScroll);
             sidebar.Child = root;
             return sidebar;
         }
@@ -2254,7 +2258,8 @@ namespace GamingBooster_Pro
             storageCard.Margin = new Thickness(0, 0, 14, 0);
             StackPanel storP = new StackPanel();
             storP.Children.Add(DashboardHeaderRow(T("SPEICHERÜBERSICHT", "STORAGE OVERVIEW"), "", false));
-            DashboardStorageTotalText = new TextBlock { Text = GetStorageTotalLabel(), Foreground = Muted, FontSize = 11, Margin = new Thickness(0, 0, 0, 6) };
+            DashboardStorageTotalText = new TextBlock { Text = GetStorageTotalLabel(), Foreground = Muted, FontSize = 12, Margin = new Thickness(0, 0, 0, 6) };
+            RedlineUi.ApplyCrispText(DashboardStorageTotalText);
             storP.Children.Add(DashboardStorageTotalText);
             Grid storRow = new Grid { Margin = new Thickness(0, 4, 0, 8) };
             storRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -2263,7 +2268,15 @@ namespace GamingBooster_Pro
             DashboardStorageDonutHost.Children.Add(BuildStorageDonutVisual(TryGetStorageOverviewSnapshot()));
             storRow.Children.Add(DashboardStorageDonutHost);
             StackPanel storText = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            DashboardStorageSummaryText = new TextBlock { Text = GetStorageOverviewSummaryText(), Foreground = TextPrimary, FontSize = 13, FontWeight = FontWeights.SemiBold };
+            DashboardStorageSummaryText = new TextBlock
+            {
+                Text = GetStorageOverviewSummaryText(),
+                Foreground = TextPrimary,
+                FontSize = 14,
+                FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap
+            };
+            RedlineUi.ApplyCrispText(DashboardStorageSummaryText);
             storText.Children.Add(DashboardStorageSummaryText);
             DashboardStorageUsedLegendText = StorageLegendLineWithValue(T("Belegt", "Used"), Red, GetStorageUsedLegendValue());
             storText.Children.Add(DashboardStorageUsedLegendText);
@@ -2278,9 +2291,11 @@ namespace GamingBooster_Pro
             {
                 Text = T("Temp-Ordner wird ermittelt…", "Measuring temp folder…"),
                 Foreground = Muted,
-                FontSize = 11,
-                Margin = new Thickness(0, 4, 0, 8)
+                FontSize = 12,
+                Margin = new Thickness(0, 4, 0, 8),
+                TextWrapping = TextWrapping.Wrap
             };
+            RedlineUi.ApplyCrispText(DashboardStorageTempDetailText);
             storP.Children.Add(DashboardStorageTempDetailText);
             Button cleanBtn = RedButton(T("Bereinigen", "Clean up"), (s, e) => Navigate("Cleaner"));
             cleanBtn.Height = 40;
@@ -2350,16 +2365,32 @@ namespace GamingBooster_Pro
 
         private UIElement StorageLegendLineWithValue(string label, Brush color, string value)
         {
-            Grid g = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+            Grid g = new Grid { Margin = new Thickness(0, 0, 0, 7) };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             g.ColumnDefinitions.Add(new ColumnDefinition());
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            StackPanel dot = new StackPanel { Orientation = Orientation.Horizontal };
-            dot.Children.Add(new TextBlock { Text = "●", Foreground = color, FontSize = 12, Margin = new Thickness(0, 0, 8, 0) });
-            dot.Children.Add(new TextBlock { Text = label, Foreground = Muted, FontSize = 12 });
-            g.Children.Add(dot);
-            g.Children.Add(new TextBlock { Text = value, Foreground = TextPrimary, FontSize = 12, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Right });
-            Grid.SetColumn(g.Children[1], 2);
+
+            StackPanel left = new StackPanel { Orientation = Orientation.Horizontal };
+            TextBlock dot = new TextBlock { Text = "●", Foreground = color, FontSize = 13, Margin = new Thickness(0, 0, 7, 0) };
+            TextBlock lbl = new TextBlock { Text = label, Foreground = Muted, FontSize = 13 };
+            left.Children.Add(dot);
+            left.Children.Add(lbl);
+            RedlineUi.ApplyCrispText(left);
+
+            TextBlock val = new TextBlock
+            {
+                Text = value,
+                Foreground = TextPrimary,
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            RedlineUi.ApplyCrispText(val);
+
+            g.Children.Add(left);
+            g.Children.Add(val);
+            Grid.SetColumn(val, 2);
+            RedlineUi.ApplyCrispText(g);
             return g;
         }
 
@@ -2427,8 +2458,19 @@ namespace GamingBooster_Pro
 
         private static void SetStorageLegendValue(UIElement? legendRow, string value)
         {
-            if (legendRow is Grid g && g.Children.Count >= 2 && g.Children[1] is TextBlock tb)
-                tb.Text = value;
+            if (legendRow is Grid g)
+            {
+                foreach (UIElement child in g.Children)
+                {
+                    if (child is TextBlock tb && Grid.GetColumn(tb) == 2)
+                    {
+                        tb.Text = value;
+                        return;
+                    }
+                }
+                if (g.Children.Count >= 2 && g.Children[1] is TextBlock fallback)
+                    fallback.Text = value;
+            }
         }
 
         private void UpdateDashboardStorageDisplay()
@@ -2497,7 +2539,7 @@ namespace GamingBooster_Pro
         {
             if (!snap.Ready)
             {
-                Grid empty = new Grid { Width = 64, Height = 64 };
+                Grid empty = new Grid { Width = 76, Height = 76 };
                 empty.Children.Add(new TextBlock
                 {
                     Text = "—",
@@ -2512,8 +2554,8 @@ namespace GamingBooster_Pro
 
             double usedPct = snap.UsedPercent / 100d;
             usedPct = Math.Clamp(usedPct, 0.02, 0.98);
-            double size = 64;
-            double thickness = 9;
+            double size = 76;
+            double thickness = 10;
             double radius = (size - thickness) / 2;
             double circleLen = 2 * Math.PI * radius;
             double unit = circleLen / thickness;
@@ -2543,22 +2585,28 @@ namespace GamingBooster_Pro
             g.Children.Add(usedRing);
 
             StackPanel center = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            center.Children.Add(new TextBlock
+            TextBlock pct = new TextBlock
             {
                 Text = snap.UsedPercent + "%",
                 Foreground = TextPrimary,
-                FontSize = 11,
+                FontSize = 14,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center
-            });
-            center.Children.Add(new TextBlock
+            };
+            TextBlock sub = new TextBlock
             {
                 Text = T("belegt", "used"),
                 Foreground = Muted,
-                FontSize = 8,
+                FontSize = 10,
                 HorizontalAlignment = HorizontalAlignment.Center
-            });
+            };
+            RedlineUi.ApplyCrispText(pct);
+            RedlineUi.ApplyCrispText(sub);
+            center.Children.Add(pct);
+            center.Children.Add(sub);
             g.Children.Add(center);
+            RedlineUi.ApplyCrispText(g);
+            RenderOptions.SetEdgeMode(g, EdgeMode.Aliased);
 
             return g;
         }
@@ -9251,9 +9299,17 @@ private Border ModernOutputCard(string startText)
 
                 int compare = CompareVersions(latestVersion, CurrentAppVersion);
 
-                if (compare <= 0)
+                if (compare < 0)
                 {
-                    await Log("✅ Redline ist aktuell.");
+                    await Log("✅ Redline ist aktuell (installiert: " + CurrentAppVersion + ", online: " + latestVersion + ").");
+                    if (Progress != null)
+                        Progress.Value = 100;
+                    return;
+                }
+
+                if (compare == 0)
+                {
+                    await Log("✅ Redline ist auf dem neuesten Stand (V" + CurrentAppVersion + ").");
                     if (Progress != null)
                         Progress.Value = 100;
                     return;

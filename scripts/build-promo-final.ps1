@@ -13,7 +13,8 @@ Write-Host "=== 1/4 Desktop aufraeumen ===" -ForegroundColor Cyan
     "REDLINE.mp4",
     "Redline Gaming Optimizer.lnk",
     "Redline Gaming Optimizer V9.lnk",
-    "Redline UPDATE-TEST (V9.0).lnk"
+    "Redline UPDATE-TEST (V9.0).lnk",
+    "GamingBooster_Pro.exe"
 ) | ForEach-Object {
     $p = Join-Path $desktop $_
     if (Test-Path $p) { Remove-Item $p -Force; Write-Host "Geloescht: $_" }
@@ -33,18 +34,12 @@ if ((Test-Path $deskFolder) -and -not (Test-Path $repoCsproj)) {
     Write-Host "Geloescht Ordner-Kopie: GamingBooster_Pro"
 }
 
-# Eine Verknuepfung zur App
+# Eine App auf Desktop (nur EXE, keine zweite Verknuepfung)
 $exe = Join-Path $root "publish\win-x64\GamingBooster_Pro.exe"
-$lnk = Join-Path $desktop "Redline Gaming Optimizer.lnk"
-$icon = Join-Path $root "GamingBooster_Pro\redline.ico"
+$deskExe = Join-Path $desktop "Redline Gaming Optimizer.exe"
 if (Test-Path $exe) {
-    $wsh = New-Object -ComObject WScript.Shell
-    $sc = $wsh.CreateShortcut($lnk)
-    $sc.TargetPath = $exe
-    $sc.WorkingDirectory = Split-Path $exe
-    if (Test-Path $icon) { $sc.IconLocation = "$icon,0" }
-    $sc.Save()
-    Write-Host "Verknuepfung: $lnk"
+    Copy-Item $exe $deskExe -Force
+    Write-Host "Desktop-App: $deskExe"
 }
 
 Write-Host "=== 2/4 Aufnahme (2K wird beim Export gesetzt) ===" -ForegroundColor Cyan

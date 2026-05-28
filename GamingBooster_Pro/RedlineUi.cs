@@ -3,6 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
+using TextFormattingMode = System.Windows.Media.TextFormattingMode;
+using TextRenderingMode = System.Windows.Media.TextRenderingMode;
+
 namespace GamingBooster_Pro
 {
     /// <summary>
@@ -10,6 +13,34 @@ namespace GamingBooster_Pro
     /// </summary>
     internal static class RedlineUi
     {
+        /// <summary>Scharfe, flüssige Schrift (kein Weichzeichner bei kleinen Texten).</summary>
+        public static void ApplyCrispText(DependencyObject element)
+        {
+            TextOptions.SetTextFormattingMode(element, TextFormattingMode.Display);
+            TextOptions.SetTextRenderingMode(element, TextRenderingMode.ClearType);
+            RenderOptions.SetBitmapScalingMode(element, BitmapScalingMode.HighQuality);
+            if (element is FrameworkElement fe)
+            {
+                fe.UseLayoutRounding = true;
+                fe.SnapsToDevicePixels = true;
+            }
+        }
+
+        public static ScrollViewer CreateSidebarScrollViewer(UIElement content)
+        {
+            ScrollViewer sv = new ScrollViewer
+            {
+                Content = content,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                PanningMode = System.Windows.Controls.PanningMode.VerticalOnly,
+                CanContentScroll = false,
+                Padding = new Thickness(0, 0, 6, 0)
+            };
+            ApplyCrispText(sv);
+            return sv;
+        }
+
         public static Border CreateStatusLogPanel(string title, string startText, RedlineTheme theme, out TextBlock body)
         {
             body = new TextBlock
