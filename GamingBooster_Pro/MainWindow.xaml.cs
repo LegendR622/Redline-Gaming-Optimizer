@@ -103,7 +103,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.5";
+        private const string CurrentAppVersion = "9.6";
 
         private static readonly string[] CleanerRecommendedCategories =
         {
@@ -614,10 +614,12 @@ namespace GamingBooster_Pro
                 ? ""
                 : T("\n\nHinweis: Einige Pro-Funktionen (Repair, DISM, DNS) brauchen zusätzlich Administrator-Rechte.", "\n\nNote: Some Pro features (repair, DISM, DNS) also require administrator rights.");
 
-            MessageBox.Show(
-                T("„" + featureName + "“ ist Teil von Redline Pro (einmalig 10 €, Lifetime-Key in Einstellungen).",
-                  "\"" + featureName + "\" is part of Redline Pro (€10 one-time, lifetime key in Settings).") + adminHint,
-                "Redline Pro",
+            string proHint = RedlineAppData.ProPurchaseEnabled
+                ? T("„" + featureName + "“ ist Teil von Redline Pro (10 € Lifetime – Key in Einstellungen).",
+                    "\"" + featureName + "\" is part of Redline Pro (€10 lifetime – key in Settings).")
+                : T("„" + featureName + "“ kommt mit Redline Pro (10 € Lifetime geplant).\n\nKauf und Konto-Verknüpfung sind noch nicht aktiv – folgt in einem Update.",
+                    "\"" + featureName + "\" will be part of Redline Pro (€10 lifetime planned).\n\nPurchase and account linking are not active yet – coming in an update.");
+            MessageBox.Show(proHint + adminHint, "Redline Pro",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             Navigate("Settings");
@@ -626,8 +628,12 @@ namespace GamingBooster_Pro
 
         private string GetProStatusShortLabel() =>
             IsProActive()
-                ? T("Pro: Aktiv (Lifetime)", "Pro: Active (lifetime)")
-                : T("Pro: 10 € einmalig (Lifetime)", "Pro: €10 one-time (lifetime)");
+                ? (RedlineAppData.Current.DevProEnabled
+                    ? T("Pro: Aktiv (Entwickler)", "Pro: Active (developer)")
+                    : T("Pro: Aktiv (Lifetime)", "Pro: Active (lifetime)"))
+                : RedlineAppData.ProPurchaseEnabled
+                    ? T("Pro: 10 € einmalig (Lifetime)", "Pro: €10 one-time (lifetime)")
+                    : T("Pro: Bald · Konto folgt", "Pro: Soon · account coming");
 
         private string GetAdminStatusShortLabel()
         {
@@ -936,12 +942,14 @@ namespace GamingBooster_Pro
                 };
                 cta.Child = new TextBlock
                 {
-                    Text = T("10 € · Lifetime", "€10 · Lifetime"),
+                    Text = RedlineAppData.ProPurchaseEnabled ? T("10 € · Lifetime", "€10 · Lifetime") : T("PRO · BALD", "PRO · SOON"),
                     Foreground = Brushes.White,
                     FontSize = 11,
                     FontWeight = FontWeights.Bold,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    ToolTip = T("Einmalzahlung, Key in Einstellungen. Du (Entwickler): REDLINE-PRO-LIFETIME-DEV", "One-time payment, key in Settings. Dev key: REDLINE-PRO-LIFETIME-DEV")
+                    ToolTip = RedlineAppData.ProPurchaseEnabled
+                        ? T("Einmalzahlung, Key in Einstellungen.", "One-time payment, key in Settings.")
+                        : T("Pro-Kauf startet später mit Konto-Verknüpfung (10 € Lifetime geplant).", "Pro purchase later with account linking (€10 lifetime planned).")
                 };
                 p.Children.Add(cta);
             }
@@ -1768,7 +1776,9 @@ namespace GamingBooster_Pro
                 Margin = new Thickness(0, 0, 12, 12),
                 Width = 280,
                 Cursor = System.Windows.Input.Cursors.Hand,
-                ToolTip = desc + "\n\n" + T("Nur mit Pro-Lizenz (10 € Lifetime). Free-Version zeigt Info.", "Pro license only (€10 lifetime). Free shows info.")
+                ToolTip = desc + "\n\n" + (RedlineAppData.ProPurchaseEnabled
+                    ? T("Nur mit Pro-Lizenz (10 € Lifetime).", "Pro license only (€10 lifetime).")
+                    : T("Pro kommt später mit Konto (10 € Lifetime geplant).", "Pro later with account (€10 lifetime planned)."))
             };
             tile.MouseLeftButtonUp += (s, e) => click(s, new RoutedEventArgs());
 
@@ -4665,7 +4675,9 @@ namespace GamingBooster_Pro
             StackPanel sp = new StackPanel();
             sp.Children.Add(new TextBlock
             {
-                Text = T("REDLINE PRO · 10 € EINMALIG (LIFETIME)", "REDLINE PRO · €10 ONE-TIME (LIFETIME)"),
+                Text = RedlineAppData.ProPurchaseEnabled
+                    ? T("REDLINE PRO · 10 € EINMALIG (LIFETIME)", "REDLINE PRO · €10 ONE-TIME (LIFETIME)")
+                    : T("REDLINE PRO · DEMNÄCHST (10 € LIFETIME)", "REDLINE PRO · COMING SOON (€10 LIFETIME)"),
                 Foreground = Brushes.White,
                 FontSize = 14,
                 FontWeight = FontWeights.UltraBold,
@@ -4679,17 +4691,34 @@ namespace GamingBooster_Pro
                 Margin = new Thickness(0, 0, 0, 10)
             });
 
+            if (!RedlineAppData.ProPurchaseEnabled && !IsProActive())
+            {
+                sp.Children.Add(new TextBlock
+                {
+                    Text = T(
+                        "Pro-Kauf ist noch nicht freigeschaltet. Es kann noch nichts bezahlt werden.\n\nGeplant: einmalig 10 € Lifetime, verknüpft mit deinem Redline-Konto (E-Mail/Login). Zahlung und Key kommen erst, wenn das Konto-System live ist.",
+                        "Pro purchase is not enabled yet. You cannot pay yet.\n\nPlanned: €10 one-time lifetime, linked to your Redline account (email/login). Payment and keys will arrive when account linking goes live."),
+                    Foreground = Muted,
+                    FontSize = 11,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 10)
+                });
+            }
+
             if (IsProActive())
             {
                 sp.Children.Add(new TextBlock
                 {
-                    Text = T("Pro ist aktiv. Lifetime-Key: ", "Pro is active. Lifetime key: ") + (RedlineAppData.Current.ProLicenseMasked.Length > 0 ? RedlineAppData.Current.ProLicenseMasked : "—"),
+                    Text = (RedlineAppData.Current.DevProEnabled
+                        ? T("Pro aktiv (Entwickler). ", "Pro active (developer). ")
+                        : T("Pro aktiv. Key: ", "Pro active. Key: "))
+                        + (RedlineAppData.Current.ProLicenseMasked.Length > 0 ? RedlineAppData.Current.ProLicenseMasked : "—"),
                     Foreground = Muted,
                     FontSize = 11,
                     TextWrapping = TextWrapping.Wrap
                 });
             }
-            else
+            else if (RedlineAppData.ProPurchaseEnabled)
             {
                 TextBox keyBox = new TextBox
                 {
@@ -4698,7 +4727,7 @@ namespace GamingBooster_Pro
                     Background = new SolidColorBrush(Color.FromRgb(16, 21, 29)),
                     Foreground = Brushes.White,
                     BorderBrush = Border,
-                    ToolTip = T("Lifetime-Key aus Kauf-Mail einfügen. Entwickler-Test: REDLINE-PRO-LIFETIME-DEV", "Paste lifetime key from purchase email. Dev test: REDLINE-PRO-LIFETIME-DEV")
+                    ToolTip = T("Lifetime-Key aus Kauf-Mail (nach Konto-Kauf).", "Lifetime key from purchase email (after account purchase).")
                 };
                 sp.Children.Add(keyBox);
                 Button activate = RedButton(T("PRO AKTIVIEREN", "ACTIVATE PRO"), (s, e) =>
@@ -4714,6 +4743,40 @@ namespace GamingBooster_Pro
                 });
                 activate.Height = 40;
                 sp.Children.Add(activate);
+            }
+
+            if (!RedlineAppData.ProPurchaseEnabled)
+            {
+                sp.Children.Add(new TextBlock
+                {
+                    Text = T("Entwickler (nur für dich)", "Developer (for you only)"),
+                    Foreground = Brushes.White,
+                    FontSize = 12,
+                    FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(0, 10, 0, 6)
+                });
+                TextBox devKey = new TextBox
+                {
+                    Height = 36,
+                    Margin = new Thickness(0, 0, 0, 6),
+                    Background = new SolidColorBrush(Color.FromRgb(16, 21, 29)),
+                    Foreground = Brushes.White,
+                    BorderBrush = Border,
+                    ToolTip = "REDLINE-PRO-LIFETIME-DEV"
+                };
+                sp.Children.Add(devKey);
+                Button devBtn = OutlineButton(T("Entwickler-Pro aktivieren", "Activate developer Pro"), (s, e) =>
+                {
+                    if (RedlineAppData.Current.TryActivateLicenseKey(devKey.Text, out string err))
+                    {
+                        PersistSettings();
+                        MessageBox.Show(T("Entwickler-Pro aktiv.", "Developer Pro active."), "Redline", MessageBoxButton.OK, MessageBoxImage.Information);
+                        Navigate("Settings");
+                    }
+                    else
+                        MessageBox.Show(err, "Redline", MessageBoxButton.OK, MessageBoxImage.Warning);
+                });
+                sp.Children.Add(devBtn);
             }
 
             sp.Children.Add(new TextBlock

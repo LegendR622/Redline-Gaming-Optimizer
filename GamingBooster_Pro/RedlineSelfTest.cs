@@ -66,7 +66,8 @@ namespace GamingBooster_Pro
         {
             Assert("Pro-Key DEV gültig", RedlineAppData.LooksLikeProKey("REDLINE-PRO-LIFETIME-DEV"));
             Assert("Pro-Key IMMISCH gültig", RedlineAppData.LooksLikeProKey("REDLINE-PRO-V9-IMMISCH"));
-            Assert("Pro-Key Lifetime-Muster", RedlineAppData.LooksLikeProKey("REDLINE-PRO-LIFETIME-TESTUSER1234"));
+            Assert("Pro-Key Kunde blockiert (Kauf aus)", !RedlineAppData.LooksLikeProKey("REDLINE-PRO-LIFETIME-TESTUSER1234"));
+            Assert("Pro-Key Lifetime-Muster wenn Kauf an", !RedlineAppData.ProPurchaseEnabled || RedlineAppData.LooksLikeProKey("REDLINE-PRO-LIFETIME-TESTUSER1234"));
             Assert("Pro-Key zu kurz ungültig", !RedlineAppData.LooksLikeProKey("REDLINE-PRO-LIFETIME-X"));
             Assert("Pro-Key Müll ungültig", !RedlineAppData.LooksLikeProKey("FAKE-KEY"));
 
@@ -74,7 +75,10 @@ namespace GamingBooster_Pro
             bool wasPro = data.ProLicenseActive;
             data.DeactivateLicenseKey();
             Assert("Aktivierung DEV-Key", data.TryActivateLicenseKey("REDLINE-PRO-LIFETIME-DEV", out string err) && string.IsNullOrEmpty(err), err);
+            Assert("DevProEnabled nach DEV-Key", data.DevProEnabled);
             Assert("IsProActive nach Key", data.IsProActive);
+            data.DeactivateLicenseKey();
+            Assert("Kunden-Key abgelehnt", !data.TryActivateLicenseKey("REDLINE-PRO-LIFETIME-CUSTOMER1234", out string err2));
             if (!wasPro) data.DeactivateLicenseKey();
         }
 
