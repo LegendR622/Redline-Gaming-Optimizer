@@ -14,7 +14,7 @@ Premium PC gaming optimizer for Windows (WPF, .NET 10).
 
 ## Download
 
-**Nur eine Datei:** `Redline_Gaming_Optimizer_Setup_v9.16.exe` (Windows-Installer)
+**Nur eine Datei:** `Redline_Gaming_Optimizer_Setup_v9.17.exe` (Windows-Installer, erkennt alte Installation und ersetzt sie)
 
 [GitHub Releases](https://github.com/LegendR622/Redline-Gaming-Optimizer/releases) – keine ZIP-Ordner mehr nötig.
 
