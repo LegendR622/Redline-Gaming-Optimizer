@@ -104,7 +104,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.23";
+        private const string CurrentAppVersion = "9.24";
         private TextBlock? _updateInstalledVersionLabel;
         private TextBlock? _updateOnlineVersionLabel;
 
@@ -129,9 +129,9 @@ namespace GamingBooster_Pro
         private Brush TextPrimary => _theme.TextPrimary;
         private Brush TextSecondary => _theme.TextSecondary;
 
-        private Brush SubCardBg => RedlineThemeMode == "Light"
+        private Brush SubCardBg => IsLightTheme
             ? new SolidColorBrush(Color.FromRgb(236, 240, 247))
-            : new SolidColorBrush(Color.FromArgb(150, 10, 14, 22));
+            : new SolidColorBrush(Color.FromArgb(180, 22, 28, 42));
 
         private bool IsLightTheme => string.Equals(RedlineThemeMode, "Light", StringComparison.OrdinalIgnoreCase);
 
@@ -214,8 +214,10 @@ namespace GamingBooster_Pro
                 NotificationsEnabled = RedlineAppData.Current.Notifications;
                 AiAssistantEnabled = RedlineAppData.Current.AiAssistantEnabled;
                 LoadThemePreference();
-                if (!string.IsNullOrWhiteSpace(RedlineAppData.Current.Theme))
-                    ApplyThemeMode(RedlineAppData.Current.Theme);
+                string theme = string.IsNullOrWhiteSpace(RedlineAppData.Current.Theme) ? "Dark" : RedlineAppData.Current.Theme;
+                if (theme is "System")
+                    theme = "Dark";
+                ApplyThemeMode(theme);
 
                 bool skipIntro = ShouldSkipIntro();
                 if (!skipIntro)
@@ -625,7 +627,7 @@ namespace GamingBooster_Pro
             {
                 Width = 420,
                 Height = 420,
-                Fill = new RadialGradientBrush(Color.FromArgb(90, 235, 18, 48), Color.FromArgb(0, 7, 7, 9)),
+                Fill = new RadialGradientBrush(Color.FromArgb(100, 237, 28, 56), Color.FromArgb(0, 4, 6, 11)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 IsHitTestVisible = false
@@ -672,7 +674,7 @@ namespace GamingBooster_Pro
             p.Children.Add(new TextBlock
             {
                 Text = "REDLINE GAMING OPTIMIZER",
-                Foreground = Brushes.White,
+                Foreground = TextPrimary,
                 FontSize = 28,
                 FontWeight = FontWeights.UltraBold,
                 HorizontalAlignment = HorizontalAlignment.Center
@@ -704,7 +706,7 @@ namespace GamingBooster_Pro
                 Minimum = 0,
                 Maximum = 100,
                 Value = 0,
-                Background = new SolidColorBrush(Color.FromRgb(28, 32, 40)),
+                Background = CardBg2,
                 BorderThickness = new Thickness(0),
                 Foreground = Red
             };
@@ -1658,7 +1660,7 @@ namespace GamingBooster_Pro
 
             Button dark = new Button
             {
-                Content = T("Dunkel", "Dark"),
+                Content = T("Dunkel ★", "Dark ★"),
                 Width = 78,
                 Height = 32,
                 FontSize = 12,
@@ -5217,10 +5219,9 @@ namespace GamingBooster_Pro
             notify.Unchecked += (s, e) => { NotificationsEnabled = false; PersistSettings(); };
             p.Children.Add(SettingsRow("🔔", T("Benachrichtigungen", "Notifications"), T("Verwalte Benachrichtigungen und Hinweise.", "Manage notifications and hints."), notify));
 
-            Button dark = SegmentButton(T("Dunkel", "Dark"), RedlineThemeMode == "Dark", () => { ApplyThemeMode("Dark"); });
-            Button sys = SegmentButton("System", RedlineThemeMode == "System", () => { ApplyThemeMode("System"); });
-            Button light = SegmentButton(T("Hell", "Light"), RedlineThemeMode == "Light", () => { ApplyThemeMode("Light"); });
-            p.Children.Add(SettingsRow("🎨", T("Design & Animation", "Design & animation"), T("Passe das Aussehen und die Animationen der App an.", "Adjust appearance and animations of the app."), Segmented(dark, sys, light)));
+            Button dark = SegmentButton(T("Dunkel ★", "Dark ★"), !IsLightTheme, () => { ApplyThemeMode("Dark"); });
+            Button light = SegmentButton(T("Hell", "Light"), IsLightTheme, () => { ApplyThemeMode("Light"); });
+            p.Children.Add(SettingsRow("🎨", T("Design", "Design"), T("Premium-Dunkel empfohlen (besser als Hell für Gaming).", "Premium dark recommended (better than light for gaming)."), Segmented(dark, light)));
 
             Button stable = SegmentButton(T("Stabil", "Stable"), UpdateChannel == "Stable", () => { UpdateChannel = "Stable"; Navigate("Settings"); });
             Button beta = SegmentButton("Beta", UpdateChannel == "Beta", () => { MessageBox.Show(T("Der Beta-Kanal ist aktuell deaktiviert.", "The beta channel is currently disabled."), "Redline", MessageBoxButton.OK, MessageBoxImage.Information); UpdateChannel = "Stable"; Navigate("Settings"); });
@@ -6174,10 +6175,10 @@ private Border ModernOutputCard(string startText) =>
             {
                 card.Effect = new System.Windows.Media.Effects.DropShadowEffect
                 {
-                    Color = Colors.Black,
-                    BlurRadius = 18,
-                    ShadowDepth = 2,
-                    Opacity = 0.35
+                    Color = Color.FromRgb(20, 8, 12),
+                    BlurRadius = 22,
+                    ShadowDepth = 3,
+                    Opacity = 0.45
                 };
             }
             return card;

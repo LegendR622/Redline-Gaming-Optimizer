@@ -38,14 +38,15 @@ namespace GamingBooster_Pro
             bool english,
             double logHeight = 420)
         {
-            Brush red = new SolidColorBrush(Color.FromRgb(220, 38, 38));
-            Brush muted = new SolidColorBrush(Color.FromRgb(148, 163, 184));
-            Brush cardBorder = new SolidColorBrush(Color.FromRgb(38, 47, 60));
-            Brush logBg = new SolidColorBrush(Color.FromRgb(8, 12, 18));
+            Brush red = new SolidColorBrush(Color.FromRgb(237, 28, 56));
+            Brush muted = new SolidColorBrush(Color.FromRgb(136, 152, 178));
+            Brush cardBorder = new SolidColorBrush(Color.FromRgb(42, 52, 72));
+            Brush logBg = new SolidColorBrush(Color.FromRgb(6, 10, 16));
+            Brush text = new SolidColorBrush(Color.FromRgb(236, 240, 248));
 
             Border card = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(18, 23, 31)),
+                Background = new SolidColorBrush(Color.FromRgb(16, 21, 32)),
                 BorderBrush = cardBorder,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
@@ -61,7 +62,7 @@ namespace GamingBooster_Pro
             titleStack.Children.Add(new TextBlock
             {
                 Text = title,
-                Foreground = Brushes.White,
+                Foreground = text,
                 FontSize = 14,
                 FontWeight = FontWeights.UltraBold
             });
@@ -92,8 +93,8 @@ namespace GamingBooster_Pro
             {
                 Content = english ? "Clear" : "Leeren",
                 Padding = new Thickness(10, 4, 10, 4),
-                Background = new SolidColorBrush(Color.FromRgb(31, 38, 50)),
-                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromRgb(22, 28, 42)),
+                Foreground = text,
                 BorderBrush = cardBorder,
                 BorderThickness = new Thickness(1),
                 FontSize = 11,

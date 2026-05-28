@@ -2,7 +2,7 @@
 ; Build: ISCC.exe scripts\RedlineSetup.iss
 
 #define MyAppName "Redline Gaming Optimizer"
-#define MyAppVersion "9.23"
+#define MyAppVersion "9.24"
 #define MyAppPublisher "Tobias Immisch"
 #define MyAppExeName "Redline Gaming Optimizer.exe"
 #define MyAppSource "..\publish\win-x64\GamingBooster_Pro.exe"
