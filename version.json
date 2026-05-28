@@ -2,5 +2,5 @@
   "packageType": "zip",
   "version": "9.13",
   "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.13/Redline_V9.13_win-x64.zip",
-  "notes": "V9.13: Update-Fix – GitHub direkt (kein veraltetes CDN), Installer-EXE wird korrekt ersetzt."
+  "notes": "V9.13: Update-Fix (GitHub direkt + Releases API). Bitte einmal installieren, danach Auto-Update zuverlässig."
 }
