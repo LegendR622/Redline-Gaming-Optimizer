@@ -1,7 +1,22 @@
-# Desktop: NUR eine Redline-App (EXE), keine doppelte Verknuepfung
+# Desktop: eine App-EXE + aktueller Setup-Installer (Version aus version.json oder -Version)
+param([string]$Version = "")
+
 $desktop = [Environment]::GetFolderPath("Desktop")
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $deskExe = Join-Path $desktop "Redline Gaming Optimizer.exe"
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $vj = Join-Path $root "version.json"
+    if (Test-Path $vj) {
+        $Version = (Get-Content $vj -Raw | ConvertFrom-Json).version
+    }
+}
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    Write-Host "Version fehlt: -Version oder version.json"
+    exit 1
+}
+
+$keepSetup = "Redline_Gaming_Optimizer_Setup_v$Version.exe"
 
 @(
     "REDLINE_Intro.mp4", "REDLINE_Promo.mp4",
@@ -20,7 +35,7 @@ Get-ChildItem $desktop -Filter "*.mp4" -File -EA SilentlyContinue |
 Get-ChildItem $desktop -Filter "*.exe" -File -EA SilentlyContinue |
     Where-Object {
         ($_.Name -match '^Redline V\d|^Redline_Gaming|^GamingBooster' -and $_.Name -ne 'Redline Gaming Optimizer.exe') -or
-        ($_.Name -match '^Redline_Gaming_Optimizer_Setup' -and $_.Name -ne 'Redline_Gaming_Optimizer_Setup_v9.28.exe')
+        ($_.Name -match '^Redline_Gaming_Optimizer_Setup' -and $_.Name -ne $keepSetup)
     } | ForEach-Object {
     Remove-Item $_.FullName -Force
     Write-Host "Geloescht: $($_.Name)"
@@ -33,8 +48,8 @@ if ((Test-Path $df) -and -not (Test-Path $repoCsproj)) {
     Write-Host "Ordner-Kopie geloescht: $df"
 }
 
-$src = Join-Path $root "publish\win-x64-full\GamingBooster_Pro.exe"
-if (-not (Test-Path $src)) { $src = Join-Path $root "publish\win-x64\GamingBooster_Pro.exe" }
+$src = Join-Path $root "publish\win-x64\GamingBooster_Pro.exe"
+if (-not (Test-Path $src)) { $src = Join-Path $root "publish\win-x64-full\GamingBooster_Pro.exe" }
 if (-not (Test-Path $src)) {
     Write-Host "Publish fehlt: $src"
     exit 1
@@ -43,11 +58,11 @@ if (-not (Test-Path $src)) {
 Copy-Item $src $deskExe -Force
 Write-Host "OK: App -> $deskExe"
 
-$setupSrc = Join-Path $root "dist\Redline_Gaming_Optimizer_Setup_v9.28.exe"
-$setupDesk = Join-Path $desktop "Redline_Gaming_Optimizer_Setup_v9.28.exe"
+$setupSrc = Join-Path $root "dist\$keepSetup"
+$setupDesk = Join-Path $desktop $keepSetup
 if (Test-Path $setupSrc) {
     Copy-Item $setupSrc $setupDesk -Force
     Write-Host "OK: Installer -> $setupDesk"
 } else {
-    Write-Host "Installer fehlt: $setupSrc (scripts\build-installer.ps1 ausfuehren)"
+    Write-Host "Installer fehlt: $setupSrc (scripts\build-release.ps1 ausfuehren)"
 }

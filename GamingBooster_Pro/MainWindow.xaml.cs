@@ -104,7 +104,7 @@ namespace GamingBooster_Pro
         private TextBlock? _cleanerFoundSizeValueText;
         private readonly Dictionary<string, TextBlock> _cleanerCategoryAmountTexts = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase);
 
-        private const string CurrentAppVersion = "9.28";
+        private const string CurrentAppVersion = "9.29";
         private TextBlock? _updateInstalledVersionLabel;
         private TextBlock? _updateOnlineVersionLabel;
         private TextBlock? _updateAutoStartHint;
@@ -125,7 +125,7 @@ namespace GamingBooster_Pro
         {
             "Browser Cache", "Temporäre Dateien", "Shader Cache"
         };
-        // Update-Quellen: siehe RedlineOnlineUpdate (GitHub raw + Releases API, jsDelivr nur Fallback)
+        // Update-Quellen: nur RedlineOnlineUpdate (GitHub Releases API + version.json, offizielle .exe-URLs)
 
         private readonly RedlineTheme _theme = new RedlineTheme();
         private Brush Bg => _theme.Bg;

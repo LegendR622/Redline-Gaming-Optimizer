@@ -1,6 +1,6 @@
 ﻿{
-    "packageType":  "setup",
-    "version":  "9.28",
-    "downloadUrl":  "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.28/Redline_Gaming_Optimizer_Setup_v9.28.exe",
-    "notes":  "Redline Gaming Optimizer V9.28 - Setup EXE installer"
+    "version": "9.29",
+    "downloadUrl": "https://github.com/LegendR622/Redline-Gaming-Optimizer/releases/download/v9.29/Redline_Gaming_Optimizer_Setup_v9.29.exe",
+    "notes": "V9.29: Updates nur von offiziellem GitHub; Auto-Update standardmaessig aus; Installation immer mit Ja/Nein.",
+    "packageType": "setup"
 }

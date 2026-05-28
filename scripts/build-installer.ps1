@@ -15,7 +15,7 @@ if (-not (Test-Path $pub)) {
 }
 
 Get-Process -Name "GamingBooster_Pro" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-& $iscc $iss
+& $iscc "/DMyAppVersion=$Version" $iss
 $out = Join-Path $root "dist\Redline_Gaming_Optimizer_Setup_v$Version.exe"
 if (-not (Test-Path $out)) { throw "Installer not created: $out" }
 Write-Host "OK: $out" -ForegroundColor Green

@@ -20,6 +20,9 @@ dotnet publish $proj -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $pubDir
 
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+Get-ChildItem $distDir -File -EA SilentlyContinue |
+    Where-Object { $_.Name -match 'Redline_Gaming_Optimizer_Setup_v|Redline_V\d.*\.zip' } |
+    Remove-Item -Force
 
 if (-not $SkipZip) {
     $zipName = "Redline_V$Version`_win-x64.zip"
